@@ -19,6 +19,20 @@ export const T = {
     '发布': '#e8c48c',
     '探索': '#e4e6e8'
   },
+  // 来源平台配色。每个平台的品牌色感觉差异很大，这里统一到同一套低饱和调色板，
+  // 保证和整体银灰主题协调；未列出的平台走 fallback。
+  platforms: {
+    'X': '#acd6e8',
+    '抖音': '#e3b3c4',
+    '小红书': '#ff7385',
+    '微信': '#6be3ad',
+    'B站': '#7ec8e3',
+    'YouTube': '#ff8a80',
+    '知乎': '#8fb8f0',
+    '微博': '#e6cf98',
+    '即刻': '#ecc98f'
+  },
+  platformFallback: '#98a6a1',
   media: {orb: asset('media/orb.mp4'), orbPoster: asset('media/orb.jpg'), jelly: asset('media/jellyfish.mp4'), jellyPoster: asset('media/jellyfish.jpg')},
   pulse: {out: ['#fffaf0', '#ecd39e'], in: ['#ffffff', '#e3b3c4']},
   ring: ['#ecd9a6', '#c9cac5'],

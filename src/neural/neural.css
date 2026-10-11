@@ -200,6 +200,11 @@ html, body { margin: 0; background: #0d0e0e; }
 .badge em { color: rgba(159, 242, 204, .65); }
 /* 笔记类型标签：颜色由内联 --tc 提供，保证同一类型在列表与详情里颜色一致。 */
 .type-chip { display: inline-flex; align-items: center; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 10px; line-height: 16px; white-space: nowrap; vertical-align: middle; color: var(--tc, #e6cf98); background: color-mix(in srgb, var(--tc, #e6cf98) 14%, transparent); border: 1px solid color-mix(in srgb, var(--tc, #e6cf98) 34%, transparent); }
+/* 作品库按平台分组时的组标题：左侧一个发光圆点 + 平台名 + 篇数胶囊。 */
+.works-group + .works-group { margin-top: 26px; }
+.platform-head { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--tc, #e6cf98); }
+.platform-head::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 999px; background: var(--tc, #e6cf98); box-shadow: 0 0 8px var(--tc, #e6cf98); }
+.platform-head em { font-style: normal; font-size: 10px; font-weight: 400; padding: 1px 6px; border-radius: 999px; color: var(--tc, #e6cf98); background: color-mix(in srgb, var(--tc, #e6cf98) 14%, transparent); border: 1px solid color-mix(in srgb, var(--tc, #e6cf98) 34%, transparent); }
 .an-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .an-explore { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, .06); color: var(--text); font-size: 12px; }
 .an-explore:hover { background: rgba(236, 236, 232, .1); border-color: rgba(236, 236, 232, .32); }

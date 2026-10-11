@@ -27,6 +27,10 @@ export function Library({graph, selected, setSelected, onGo, onAction}) {
   const total = posts.reduce((s, p) => s + p.views, 0);
   const max = Math.max(...posts.map(p => p.views));
   const kpis = [['已发布', 'Published', posts.length], ['账号粉丝', 'Followers', snapshot.followers], ['累计观看', 'Total views', total], ['已知涨粉', 'Known follows', posts.reduce((s, p) => s + (p.follows ?? 0), 0)]];
+  // 平台分组：只有一个平台时不分组（多一层标题没意义），出现第二个平台才自动分组。
+  const platOf = p => p.platform || '未标注';
+  const platList = [...new Set(posts.map(platOf))].sort((a, b) =>
+    posts.filter(p => platOf(p) === b).length - posts.filter(p => platOf(p) === a).length);
   return <div className="page page-library">
     <PageHead zh="作品库" en="Works" sub="每一篇，都留下回响。" subEn="Every piece leaves an echo — metrics and links side by side."/>
     <section className="kpi-band glass">{kpis.map(([zh, en, v]) => <div key={zh}><span>{zh} <em>{en}</em></span><strong><Count value={v}/></strong></div>)}</section>
@@ -36,19 +40,30 @@ export function Library({graph, selected, setSelected, onGo, onAction}) {
           <label className="search"><Icon name="search" size={15}/><input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索作品… Search works" aria-label="搜索作品"/></label>
           <div className="seg" role="group" aria-label="排序">{[['date', '最新', 'Latest'], ['views', '观看', 'Views'], ['rate', '收藏率', 'Save rate'], ['follows', '涨粉', 'Follows']].map(([k, zh, en]) => <button key={k} className={sort === k ? 'active' : ''} onClick={() => setSort(k)}>{zh}<em>{en}</em></button>)}</div>
         </div>
-        <div className="works-grid">{rows.map((p, i) => {
-          const n = graph.index.get('post:' + p.id);
-          const on = node?.id === n.id;
-          return <button key={p.id} className={`work-card ${on ? 'active' : ''}`} onClick={() => setSelected(p.id)} style={{animationDelay: i * 60 + 'ms'}}>
-            <span className="wc-cover">{n.cover ? <img src={n.cover} alt="" loading="lazy"/> : <span className="wc-fallback" style={{'--h': (order.indexOf(p) * 47) % 360}}><b>{p.title}</b><small>{n.media === 'video' ? '视频 · Video' : '图文 · Post'}</small></span>}<span className="wc-index">#{String(order.indexOf(p) + 1).padStart(2, '0')}</span></span>
-            <span className="wc-body">
-              <span className="wc-date">{p.date.slice(0, 10)} · {n.tags.length} topics</span>
-              <span className="wc-title">{p.title}</span>
-              <span className="wc-bar"><i style={{'--w': p.views / max}}/></span>
-              <span className="wc-stats"><span>观看<em>Views</em><b>{fmt(p.views)}</b></span><span>收藏<em>Saves</em><b>{fmt(p.saves)}</b></span><span>⇄<em>Mutual</em><b>{n.mutual}</b></span></span>
-            </span>
-          </button>;
-        })}</div>
+        {(() => {
+          const card = (p, i) => {
+            const n = graph.index.get('post:' + p.id);
+            const on = node?.id === n.id;
+            return <button key={p.id} className={`work-card ${on ? 'active' : ''}`} onClick={() => setSelected(p.id)} style={{animationDelay: i * 60 + 'ms'}}>
+              <span className="wc-cover">{n.cover ? <img src={n.cover} alt="" loading="lazy"/> : <span className="wc-fallback" style={{'--h': (order.indexOf(p) * 47) % 360}}><b>{p.title}</b><small>{n.media === 'video' ? '视频 · Video' : '图文 · Post'}</small></span>}<span className="wc-index">#{String(order.indexOf(p) + 1).padStart(2, '0')}</span></span>
+              <span className="wc-body">
+                <span className="wc-date">{p.date.slice(0, 10)} · {n.tags.length} topics</span>
+                <span className="wc-title">{p.title}</span>
+                <span className="wc-bar"><i style={{'--w': p.views / max}}/></span>
+                <span className="wc-stats"><span>观看<em>Views</em><b>{fmt(p.views)}</b></span><span>收藏<em>Saves</em><b>{fmt(p.saves)}</b></span><span>⇄<em>Mutual</em><b>{n.mutual}</b></span></span>
+              </span>
+            </button>;
+          };
+          if (platList.length < 2) return <div className="works-grid">{rows.map(card)}</div>;
+          return platList.map(pf => {
+            const sub = rows.filter(p => platOf(p) === pf);
+            if (!sub.length) return null;
+            return <section className="works-group" key={pf}>
+              <h3 className="platform-head" style={{'--tc': T.platforms[pf] || T.platformFallback}}>{pf}<em>{sub.length}</em></h3>
+              <div className="works-grid">{sub.map(card)}</div>
+            </section>;
+          });
+        })()}
         {!rows.length && <div className="empty"><Icon name="search" size={30}/><p>没有找到这篇作品 <em>No match</em></p><button className="pill" onClick={() => setQ('')}>清空搜索 <em>Clear</em></button></div>}
         <p className="source-line"><Icon name="info" size={13}/>{posts.length} 篇作品均为{snapshot.source}；「—」表示未提供 <em>Not provided</em>。</p>
       </section>
