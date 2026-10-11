@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {KINDS, CONTENT, MODULES, neighbors, latent, askGraph, LINK_KINDS, LINK_EN} from './graph';
+import {KINDS, CONTENT, MODULES, moduleOf, neighbors, latent, askGraph, LINK_KINDS, LINK_EN} from './graph';
 import {Icon} from './icons';
 import {T} from './theme';
 import {metricsFor} from '../platform-metrics';
@@ -114,8 +114,9 @@ function analyze(graph, node) {
       bars: [...C].sort((a, b) => a.deg - b.deg).map(c => ({v: c.deg, on: c.id === node.id, label: c.short}))};
   };
 
-  if (node.kind === 'post' || node.kind === 'collect') {
-    // 作品与收藏结构相同，共用这套分析；只有文案与跳转目标不同。
+  // 「带平台指标的内容」（作品 / 收藏）共用这套分析，用 MODULES 的 metrics 标志判断而非
+  // 写死 kind —— 以后再加这类内容时不会漏掉这里。文案与跳转目标仍按是不是收藏区分。
+  if (moduleOf(node)?.metrics) {
     const isCollect = node.kind === 'collect';
     // 排名在「同类内容」里比：作品跟作品比，收藏跟收藏比。
     // 写死 kind === 'post' 会让收藏页永远显示「第 0/0 名」。
@@ -202,7 +203,10 @@ function analyze(graph, node) {
     badge: ['概念', 'Concept'], status: `被 ${who.length} 条内容提及 · mentioned by ${who.length}`,
     metric: {label: '覆盖率', en: 'Coverage', value: 100 * who.length / C.length, decimals: 0, level: who.length >= 5 ? ['核心', 'Core', 'high'] : who.length >= 3 ? ['常用', 'Common', 'mid'] : ['少见', 'Rare', 'low'],
       delta: `${who.length}/${C.length}`, deltaEn: 'notes', bars: [...K].sort((a, b) => a.in - b.in).map(k => ({v: k.in, on: k === node, label: k.title}))},
-    tiles: [['works', count('post'), '作品', 'Works'], ['methods', count('note'), '方法笔记', 'Notes'], ['idea', count('idea'), '选题', 'Ideas'], ['draft', count('draft'), '草稿', 'Drafts']],
+    // 指标块从 MODULES 推导，保证核心节点覆盖所有内容模块。
+    // 这里原先手写四项（作品/方法笔记/选题/草稿），加「收藏」时漏了，
+    // 于是概念节点上看不到收藏数量 —— 改成推导后不会再漂移。
+    tiles: MODULES.filter(m => CONTENT.has(m.kind)).map(m => [m.icon, count(m.kind), m.title, m.en]),
     insights: [
       ['内部共振', 'Inner resonance', `提及「${node.title}」的内容之间形成 ${inner} 组双向共振。`, inner ? 'gold' : 'info'],
       ['常一起出现', 'Co-occurs with', co.filter(x => x[1]).map(([k, n]) => `${k.title}（${n}）`).join('、') || '暂无', 'info']

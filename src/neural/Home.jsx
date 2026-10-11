@@ -17,8 +17,10 @@ export function moduleItems(graph, modId) {
   const m = MODULES.find(x => x.id === modId);
   if (!m) return [];
   const list = graph.nodes.filter(n => n.kind === m.kind);
-  if (m.kind === 'post') list.sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  if (m.kind === 'concept') list.sort((a, b) => b.in - a.in);
+  // 排序规则来自 MODULES 的 sort 字段，不再按 kind 写死 ——
+  // 之前写死 kind === 'post'，加「收藏」时漏了分支，收藏展开后没有排序。
+  if (m.sort === 'date') list.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  if (m.sort === 'in') list.sort((a, b) => b.in - a.in);
   return list;
 }
 
@@ -467,7 +469,7 @@ export function Home({graph, layout, focus, setFocus, onAction, onAbout, reduced
 
     {stage === 'hub' && <div className="legend glass" aria-label="图例">
       <h3>图例 <em>Legend</em></h3>
-      {['post', 'collect', 'note', 'idea', 'draft', 'concept', 'tag', 'ghost'].map(k => <div key={k}><i style={{'--kc': KINDS[k].color}} className={k === 'ghost' ? 'ghost' : ''}/>{KINDS[k].label} <em>{KINDS[k].en}</em><b>{graph.nodes.filter(n => n.kind === k).length}</b></div>)}
+      {Object.keys(KINDS).filter(k => k !== 'core' && k !== 'folder').map(k => <div key={k}><i style={{'--kc': KINDS[k].color}} className={k === 'ghost' ? 'ghost' : ''}/>{KINDS[k].label} <em>{KINDS[k].en}</em><b>{graph.nodes.filter(n => n.kind === k).length}</b></div>)}
       <div className="legend-lines"><span><i className="ln mutual"/>双向 <em>Mutual</em></span><span><i className="ln one"/>单向 <em>One-way</em></span></div>
     </div>}
     {stage === 'hub' && <Dock graph={graph} onGo={go}/>}

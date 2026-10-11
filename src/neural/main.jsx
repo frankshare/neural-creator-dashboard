@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {seedIdeas, seedDrafts, snapshot, DATA_SOURCE} from '../data';
 import {posts, monthPosts, collects} from './works';
 import {CONFIG, asset} from '../config';
-import {buildGraph, forceLayout, stats, KINDS} from './graph';
+import {buildGraph, forceLayout, stats, KINDS, MODULES, moduleOf} from './graph';
 import {Home} from './Home';
 import {Library, Drafts, Ideas} from './pages';
 import {Count} from './Analysis';
@@ -47,7 +47,10 @@ function Modal({title, en, onClose, children, wide}) {
   </div>;
 }
 
-const navs = [['home', '工作台', 'Workspace'], ['library', '作品库', 'Works'], ['collects', '收藏', 'Collects'], ['drafts', '创作台', 'Drafts'], ['ideas', '选题池', 'Ideas']];
+// 导航项从 MODULES 推导：凡是声明了 page 的模块都进导航。
+// 原来手写这份列表，加「收藏」时得同步改两处；而且 initialPage 用它校验 URL hash，
+// 漏改就会让深链接失效。推导后新增内页自动进导航。
+const navs = [['home', '工作台', 'Workspace'], ...MODULES.filter(m => m.page).map(m => [m.page, m.title, m.en])];
 const initialPage = () => { const h = location.hash.slice(1); return navs.some(n => n[0] === h) ? h : 'home'; };
 
 function Snapshot({goal, onGoal, ideas, drafts, onIdea, onDraft, onLibrary}) {
@@ -132,7 +135,9 @@ function App() {
     if (a.type === 'editIdea') editIdea(a.idea);
     if (a.type === 'ideaToDraft') toDraft(a.idea);
   }, [graph, drafts, ideas]); // eslint-disable-line react-hooks/exhaustive-deps
-  const openInGraph = id => { const n = graph.index.get(id); const mod = {post: 'works', collect: 'collects', note: 'methods', idea: 'ideas', draft: 'drafts', concept: 'concepts'}[n?.kind]; if (mod) { setFocus({mod, sel: id}); setPage('home'); } };
+  // kind → 模块 的映射从 MODULES 推导（复用 graph.js 的 moduleOf）。
+  // 原来手写一张 {post:'works', collect:'collects', …}，加「收藏」时差点漏掉。
+  const openInGraph = id => { const m = moduleOf(graph.index.get(id)); if (m) { setFocus({mod: m.id, sel: id}); setPage('home'); } };
   const s = stats(graph);
 
   return <div className={`neural page-${page}`}>

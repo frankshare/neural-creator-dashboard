@@ -40,15 +40,20 @@ export const CONTENT = new Set(['post', 'collect', 'note', 'idea', 'draft']);
 //   angle  围绕光球的角度，手工调过，要避开光球与右侧分析栏
 //   folder 对应的图谱目录锚点 id，concepts 是推导出来的、不挂目录，所以没有此字段
 //   icon   水母图标；page 点击后跳转的内页（没有则只展开不跳转）
+//   sort   展开模块时列表怎么排：'date' 按时间倒序、'in' 按反链数倒序、不写保持原顺序。
+//          放在这里而不是在 Home.jsx 里 if (kind === ...) 判断 —— 之前那种写法在加「收藏」时
+//          漏了分支，收藏展开后没有排序。配置化之后新增模块不会再漏。
+//   metrics 该模块的内容带平台指标（观看/点赞/…）。分析栏据此决定要不要渲染指标区块，
+//          不再写 if (kind === 'post' || kind === 'collect')。
 export const MODULES = [
-  {id: 'works', title: '作品库', en: 'Works', kind: 'post', folder: 'f:works', angle: 180, icon: 'works', page: 'library',
+  {id: 'works', title: '作品库', en: 'Works', kind: 'post', folder: 'f:works', angle: 180, icon: 'works', page: 'library', sort: 'date', metrics: true,
    color: '#c3bcf2', filter: 'hue-rotate(215deg) saturate(1.1)', flip: 1},
   // 「收藏」= 收藏的他人内容（参考资料），与「作品库」结构相同但语义相反：
   // 作品是「你发布的、指标是你的表现」，收藏是「别人发布的、指标是别人的表现」。
   // 放在 90°（正下方）—— 0/35/145/180 已被其他模块占用，-90 是概念网络。
-  {id: 'collects', title: '收藏', en: 'Collects', kind: 'collect', folder: 'f:collects', angle: 90, icon: 'save', page: 'collects',
+  {id: 'collects', title: '收藏', en: 'Collects', kind: 'collect', folder: 'f:collects', angle: 90, icon: 'save', page: 'collects', sort: 'date', metrics: true,
    color: '#e3b3c4', filter: 'hue-rotate(300deg) saturate(1.15)', flip: 1},
-  {id: 'concepts', title: '概念网络', en: 'Concepts', kind: 'concept', angle: -90, icon: 'concept',
+  {id: 'concepts', title: '概念网络', en: 'Concepts', kind: 'concept', angle: -90, icon: 'concept', sort: 'in',
    color: '#e2e5e8', filter: 'hue-rotate(185deg) saturate(.3) brightness(1.15)', flip: -1},
   {id: 'methods', title: '方法库', en: 'Methods', kind: 'note', folder: 'f:methods', angle: 0, icon: 'methods',
    color: '#ace0cf', filter: 'hue-rotate(118deg) saturate(1)', flip: -1},
@@ -71,11 +76,11 @@ const FOLDERS = [
   return {...f, title: m?.title ?? f.id, angle: m?.angle ?? 0};
 });
 
-export const cleanTitle = t => String(t || '').replace(/^\d+[A-Z]?-☑️/, '').replace(/^\d+-/, '').replace(/_/g, ' · ');
+// cleanTitle 只在本文件内使用，不需要 export。
+const cleanTitle = t => String(t || '').replace(/^\d+[A-Z]?-☑️/, '').replace(/^\d+-/, '').replace(/_/g, ' · ');
 const contentOf = id => workContent.find(c => c.title === posts.find(p => p.id === id)?.title);
 // 收藏与作品结构相同，各配一个按标题对齐正文的查找函数。
 const collectOf = id => collectItems.find(c => c.title === collects.find(p => p.id === id)?.title);
-export const postMedia = post => contentOf(post.id) || null;
 
 export function buildGraph({ideas = [], drafts = []} = {}) {
   const nodes = new Map();
@@ -293,28 +298,8 @@ export function forceLayout(graph) {
   return Object.fromEntries(N.map(n => [n.id, [n.x, n.y * .82]]));
 }
 
-// 放射层级：以创作空间为圆心，按链接层数排成同心环。
-export function radialLayout(graph) {
-  const depth = new Map([['core', 0]]), parent = new Map(), q = ['core'];
-  const adj = new Map(graph.nodes.map(n => [n.id, []]));
-  const order = {contain: 0, source: 1, wiki: 1, tag: 2, mention: 3, resonance: 4};
-  for (const l of [...graph.links].sort((a, b) => order[a.kind] - order[b.kind])) { adj.get(l.a).push(l.b); adj.get(l.b).push(l.a); }
-  while (q.length) { const id = q.shift(); for (const o of adj.get(id)) if (!depth.has(o)) { depth.set(o, depth.get(id) + 1); parent.set(o, id); q.push(o); } }
-  const pos = {core: [0, 0]};
-  const kids = id => graph.nodes.filter(n => parent.get(n.id) === id).map(n => n.id);
-  const leaves = id => { const k = kids(id); return k.length ? k.reduce((s, c) => s + leaves(c), 0) : 1; };
-  const place = (id, a0, a1) => {
-    const k = kids(id); let a = a0; const total = k.reduce((s, c) => s + leaves(c), 0) || 1;
-    for (const c of k) {
-      const span = (a1 - a0) * leaves(c) / total, mid = a + span / 2, R = [0, 150, 290, 410, 520][Math.min(depth.get(c), 4)];
-      pos[c] = [Math.cos(mid) * R, Math.sin(mid) * R * .82];
-      place(c, a, a + span); a += span;
-    }
-  };
-  place('core', -Math.PI, Math.PI);
-  for (const n of graph.nodes) if (!pos[n.id]) pos[n.id] = [0, 560];
-  return pos;
-}
+// （原先这里有一个 radialLayout()：以创作空间为圆心按链接层数排同心环。
+//   水母场景 Home.jsx 改用 forceLayout + 手写角度后它就没人调用了，删除以免误导。）
 
 // —— 本地图谱检索（规则匹配，未调用 AI）——
 export function askGraph(graph, question, scope) {
