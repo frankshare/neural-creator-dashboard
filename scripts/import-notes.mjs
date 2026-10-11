@@ -179,7 +179,11 @@ for (const file of files) {
   const rel = relative(VAULT, file), c = classify(rel);
   if (!c) continue;
   const {fm, body} = parse(readFileSync(file, 'utf8'));
-  const title = String(pick(fm, ['title', '标题', 'name']) || basename(file).replace(/\.md$/i, '')).trim();
+  const rawTitle = String(pick(fm, ['title', '标题', 'name']) || '').trim();
+  const fileTitle = basename(file).replace(/\.md$/i, '');
+  // 模板文件（Obsidian 的 {{title}} / {{date}} 占位符）还没被套用，直接读 frontmatter
+  // 会让看板上出现一堆名叫「{{title}}」的笔记。认出未解析的占位符就回退到文件名。
+  const title = (!rawTitle || /^\{\{.*\}\}$/.test(rawTitle) ? fileTitle : rawTitle).trim();
   bucket[c.kind].push({file, rel, root: c.root, fm, body, title, platform: platformFor(c.kind, rel, fm, c.root)});
 }
 
