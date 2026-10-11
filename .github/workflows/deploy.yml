@@ -40,6 +40,9 @@ jobs:
         run: npm run build
 
       - uses: actions/configure-pages@v5
+        with:
+          # 首次运行时自动启用 Pages（否则会报 HttpError: 未找到 - 获取 Pages 站点失败）
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
