@@ -12,7 +12,7 @@
 > **使用许可：学习与非商业使用。** 当前授权政策为 [PolyForm Noncommercial 1.0.0](LICENSE)，不授予商业使用权限。商业使用需另行授权。这是源码公开项目，不是允许任意商业使用的开源许可。
 > **历史例外：** 0.1.0 曾以 MIT 发布，旧版已授出的权利不受影响，包括其中未变更的代码。详见 [授权说明](NOTICE.md)。
 
-把你的作品、笔记、选题和草稿，变成一张会呼吸的神经网络：中心是一颗光球，五只发光的水母代表五个模块，点开水母，触须像伞一样展开到每一篇内容；点开一篇，右侧弹出它的全部数据和双向链接。
+把你的作品、笔记、选题和草稿，变成一张会呼吸的神经网络：中心是一颗光球，六只发光的水母代表六个模块，点开水母，触须像伞一样展开到每一篇内容；点开一篇，右侧弹出它的全部数据和双向链接。
 
 Turn your works, notes, ideas and drafts into a living neural network — an orb, five glowing jellyfish modules, umbrella-like tentacles to every piece, and a full analysis panel for each one.
 
@@ -20,10 +20,10 @@ Turn your works, notes, ideas and drafts into a living neural network — an orb
 
 ## 它能做什么
 
-- **工作台**：光球点亮、粒子迸发，背景网络从光球蔓延开，五只水母（作品库、概念网络、方法库、选题池、创作台）围绕光球游动。
+- **工作台**：光球点亮、粒子迸发，背景网络从光球蔓延开，六只水母（作品库、收藏、概念网络、方法库、选题池、创作台）围绕光球游动。
 - **三层交互**：点水母 → 光球退到左侧、水母列队，触须扇形展开到该模块的每一篇内容；点内容 → 右侧滑出分析栏（指标、收藏率、出链 / 反链 / 双向、话题、二度关联）；Esc 或面包屑逐层返回。
 - **问你的图谱**：底部对话框可以问「最核心的内容」「双向连接有哪些」「下一篇写什么」「未创建的笔记」，按本地规则检索，不调用 AI。
-- **作品库 / 创作台 / 选题池**三个内页：作品卡片与排序、草稿编辑（支持 `[[` 双链补全）、选题转草稿。
+- **作品库 / 收藏 / 创作台 / 选题池**四个内页：作品卡片与排序（收藏页复用同一套组件，按平台分组、支持多平台指标）、草稿编辑（支持 `[[` 双链补全）、选题转草稿。
 - **银灰配色**：中性深灰底、银灰光球、香槟金点缀，颜色集中在 `src/neural/theme.js` 和 `neural.css` 顶部的 CSS 变量里。
 - **中英双语**界面，尊重系统的「减少动态效果」设置。
 - 纯前端，选题、草稿和目标保存在浏览器 `localStorage`，无后台同步服务。
@@ -76,8 +76,8 @@ npx skills add luoluo-121/neural-creator-dashboard
 npm run import -- --vault "<你的笔记文件夹>" --account "<账号名>" --followers 1280
 ```
 
-- 按文件夹名自动识别：名字含「作品 / works」的是作品，「方法 / 模板 / 流程 / methods」的是方法笔记，「选题 / ideas」的是选题，「草稿 / 创作台 / drafts」的是草稿；也可以用 `--works`、`--methods`、`--ideas`、`--drafts` 指定文件夹。
-- 作品数据写在 frontmatter 里，中英文字段都认（`观看/views`、`收藏/saves`、`点赞/likes`、`发布时间/date`、`类型/media`……），支持「1.2万」「12.4%」这类写法。
+- 按文件夹名自动识别：名字含「作品 / works」的是**你自己发布的作品**，「收藏 / 书签 / 归档 / collects」的是**收藏的他人内容**（两者结构相同、在面板上是两个独立模块，但指标含义相反：前者的指标是你的成绩单，后者是原作者的公开数据），「方法 / 模板 / 流程 / methods」的是方法笔记，「选题 / ideas」的是选题，「草稿 / 创作台 / drafts」的是草稿；也可以用 `--works`、`--collects`、`--methods`、`--ideas`、`--drafts` 指定文件夹。
+- 作品与收藏的数据写在 frontmatter 里，中英文字段都认（`观看/views`、`收藏/saves`、`点赞/likes`、`发布时间/date`、`类型/media`……），支持「1.2万」「12.4%」这类写法。**指标按平台定义**（X：观看/点赞/转推/书签/回复；抖音：播放/完播率/点赞/评论/分享；小红书、微信、B站 见下），且**只列真正有值的项** —— 缺哪项就不写哪项，面板显示「—」而不是 0。平台默认从分类目录名推断（`X书签归档/` → `X`），frontmatter 里的 `platform` / `平台` 可以覆盖，也支持写成数组。指标定义在 **`src/platform-metrics.js`**，改指标只改那一个文件。
 - 正文的 `[[双链]]` 自动连线；同一个话题标签出现在两条以上内容里，会成为「概念」节点。
 - 格式参考 `examples/vault/`，可以先 `npm run import -- --vault examples/vault` 试试。
 - 导入结果写到 `src/data/my-data.js`（已在 `.gitignore`，不会被提交）；`npm run import -- --reset` 切回示例数据；`npm run import -- --help` 查看全部选项。
@@ -91,7 +91,8 @@ npm run import -- --vault "<你的笔记文件夹>" --account "<账号名>" --fo
 | 导出 | 内容 | 关键字段 |
 |---|---|---|
 | `snapshot` | 账号概况 | `account` 账号名、`followers` 粉丝数、`capturedAt` 数据日期、`source` 来源说明 |
-| `posts` / `postContent` | 作品（由 `W(...)` 一次写出） | 指标：`views` `likes` `comments` `saves` `follows` `shares` `impressions` `ctr` `duration`，缺失填 `null`；内容：`body` 正文、`tags` 话题、`media`（`images` / `video`） |
+| `posts` / `postContent` | 作品：**你自己发布的** | 通用指标 `views` `likes` `comments` `saves` `follows` `shares` `impressions` `ctr` `duration`（缺失填 `null`）；平台专属指标 `metrics`（对象，键名见 `src/platform-metrics.js`）与来源 `platform`；分类标签 `type`。内容：`body` 正文、`tags` 话题、`media`（`images` / `video`） |
+| `collects` / `collectContent` | 收藏：**收藏的他人内容** | 结构与 `posts` **完全相同**（同一套渲染组件），差别只在语义：这里记的是原作者的公开数据，不是你的成绩单 |
 | `notes` | 方法库笔记 | `title`、`path`（第二段是子目录）、`body`（可以写 `[[双链]]`） |
 | `seedIdeas` | 选题池 | `title`、`priority`（高 / 中 / 低）、`status`（待写 / 待扩展 / 已转草稿）、`note` |
 | `seedDrafts` | 创作台草稿 | `title`、`body`、`source`（来源选题的 id） |
@@ -122,14 +123,16 @@ npm run import -- --vault "<你的笔记文件夹>" --account "<账号名>" --fo
 ├── examples/vault/            虚构的示例笔记库
 ├── public/media/              光球与水母视频
 ├── src/config.js              个性化配置
+├── src/platform-metrics.js    平台专属指标定义（改指标只改这个文件）
 ├── src/data/index.js          数据入口（示例 / 你的数据）
 ├── src/data/sample.js         示例数据（虚构）
 └── src/neural/
-    ├── graph.js               图谱推导、布局、本地检索
+    ├── graph.js               图谱推导、布局、本地检索（模块定义 MODULES 也在这里）
     ├── Home.jsx               光球、水母、触须场景与三层交互
     ├── NetworkCanvas.jsx      背景神经网络
     ├── Analysis.jsx           右侧分析栏
-    ├── pages.jsx              作品库 / 创作台 / 选题池
+    ├── pages.jsx              作品库 / 收藏 / 创作台 / 选题池
+    ├── works.js               作品与收藏的数据入口
     ├── main.jsx               页面框架与弹窗
     ├── theme.js               配色与素材路径
     └── neural.css             样式
