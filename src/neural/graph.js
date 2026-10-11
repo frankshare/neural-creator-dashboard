@@ -341,13 +341,18 @@ export function askGraph(graph, question, scope) {
     cards.push({tone: 'info', title: '最常被提及的概念', en: 'Top concepts', text: hubs.map(h => `${h.title}（${h.deg}）`).join('、'), items: hubs.map(n => n.id)});
   } else if (/下一篇|写什么|选题|延伸/.test(q)) {
     for (const idea of C.filter(n => n.kind === 'idea')) {
-      const rel = latent(graph, idea.id).filter(r => graph.index.get(r.id).kind === 'post');
-      cards.push({tone: 'info', title: idea.short, en: 'Next piece', text: rel.length ? `可以延伸 ${rel.length} 篇已发布作品，共享：${[...new Set(rel.flatMap(r => r.via))].slice(0, 4).join('、')}` : '暂未与已发布作品共享概念，可补充正文后再看。', items: [idea.id, ...rel.slice(0, 3).map(r => r.id)]});
+      // 选题可以延伸到「你自己的作品」和「收藏的参考资料」两类内容上。
+      const rel = latent(graph, idea.id).filter(r => ['post', 'collect'].includes(graph.index.get(r.id).kind));
+      cards.push({tone: 'info', title: idea.short, en: 'Next piece', text: rel.length ? `可以延伸 ${rel.length} 篇内容，共享：${[...new Set(rel.flatMap(r => r.via))].slice(0, 4).join('、')}` : '暂未与其他内容共享概念，可补充正文后再看。', items: [idea.id, ...rel.slice(0, 3).map(r => r.id)]});
     }
   } else if (/表现|观看|最好|数据|收藏/.test(q)) {
     const ps = C.filter(n => n.kind === 'post').sort((a, b) => b.post.views - a.post.views);
+    const cs = C.filter(n => n.kind === 'collect').sort((a, b) => b.post.views - a.post.views);
     if (ps.length) cards.push({tone: 'gold', title: '作品表现', en: 'Performance', text: `观看最高：${ps[0].short}（${ps[0].post.views}）。下面按观看排序。`, items: ps.map(n => n.id), meta: ps.map(n => `${n.post.views} 观看 · ${n.post.saves} 收藏`)});
-    else cards.push({tone: 'warn', title: '还没有作品', en: 'No works', text: '当前数据里没有作品笔记，所以没有观看数据。把作品放进名字含「作品 / works」的文件夹，或用 --works 指定后重新导入。', items: []});
+    // 只有收藏、没有自己的作品时，别答「还没有作品」—— 观众问「收藏」就把收藏的数据给他，
+    // 但要提醒一句：那是原帖作者的数据，不是你的成绩单。
+    else if (cs.length) cards.push({tone: 'info', title: '收藏数据', en: 'Collected metrics', text: `还没有你自己的作品，但收藏里有 ${cs.length} 条。观看最高：${cs[0].short}（${cs[0].post.views}）。注意：这些是原帖作者的公开数据。`, items: cs.map(n => n.id), meta: cs.map(n => `${n.post.views} 观看 · ${n.post.saves} 收藏`)});
+    else cards.push({tone: 'warn', title: '还没有作品', en: 'No works', text: '「作品库」装的是你自己发布的笔记，当前为空。把你自己的作品放进 4-我的作品/（在 frontmatter 写 platform），或用 --works 指定后重新导入；收藏的他人内容请用 --collects。', items: []});
   } else {
     const words = q.replace(/[？?。，,！!]/g, ' ').split(/\s+/).filter(w => w.length >= 1);
     const hits = graph.nodes.filter(n => n.kind !== 'core').map(n => {
