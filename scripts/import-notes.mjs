@@ -201,21 +201,30 @@ const works = workItems.map(({primary: x, body, tags}) => {
   const platform = x.platform || '';
   // 平台专属指标：按 src/platform-metrics.js 的定义从 frontmatter 读，键名认中英别名。
   // 只保留真正读到值的项 —— UI 据此判断「这个指标有没有数据」，而不是拿 0 冒充。
+  const defs = metricsFor(platform);
   const metrics = {};
-  for (const d of metricsFor(platform)) {
+  for (const d of defs) {
     const v = num(pick(x.fm, d.aliases));
     if (v != null) metrics[d.key] = v;
   }
+  // 平台指标优先：同一个数字（如 X 的「书签」）既进 metrics，也回填到通用字段 ——
+  // 作品卡片、KPI 带、排行榜这些还在读通用字段的地方才不会显示 0。
+  // 用 ?? 而不是 ||，这样真实的 0 不会被当成「没数据」。
+  // legacy 映射：定义里声明了 legacy 的指标，回填到对应通用字段。
+  // 各平台对同一件事叫法不同（X 叫「回复」、小红书叫「评论」），在定义里指到同一个通用字段。
+  const legacyOf = {};
+  for (const d of defs) if (d.legacy && metrics[d.key] != null) legacyOf[d.legacy] = metrics[d.key];
+  const g = (k, aliases, dflt) => legacyOf[k] ?? metrics[k] ?? num(pick(x.fm, aliases)) ?? dflt;
   const p = {
     title: x.title, type: noteType, platform, metrics, date: dateOf(pick(x.fm, ['date', '发布时间', '发布日期', 'published', 'publishedAt', 'created', '创建时间']), x.file),
-    views: num(pick(x.fm, ['views', '观看', '浏览', '阅读', '播放'])) ?? 0,
-    likes: num(pick(x.fm, ['likes', '点赞'])) ?? 0,
-    comments: num(pick(x.fm, ['comments', '评论'])) ?? 0,
-    saves: num(pick(x.fm, ['saves', '收藏'])) ?? 0,
-    follows: num(pick(x.fm, ['follows', '涨粉'])),
-    shares: num(pick(x.fm, ['shares', '分享', '转发'])) ?? 0,
-    impressions: num(pick(x.fm, ['impressions', '曝光'])),
-    ctr: num(pick(x.fm, ['ctr', '点击率', '封面点击率'])),
+    views: g('views', ['views', '观看', '浏览', '阅读', '播放'], 0),
+    likes: g('likes', ['likes', '点赞'], 0),
+    comments: g('comments', ['comments', '评论'], 0),
+    saves: g('saves', ['saves', '收藏', '书签'], 0),
+    follows: g('follows', ['follows', '涨粉'], null),
+    shares: g('shares', ['shares', '分享', '转发'], 0),
+    impressions: g('impressions', ['impressions', '曝光'], null),
+    ctr: g('ctr', ['ctr', '点击率', '封面点击率'], null),
     duration: num(pick(x.fm, ['duration', '平均观看', '平均观看时长', '时长']))
   };
   return {post: p, content: {title: x.title, type: noteType, platform, body, tags, media}};
