@@ -3,14 +3,9 @@ import {asset} from '../config';
 
 export const T = {
   kinds: {core: '#ecd9a6', folder: '#d9b6c1', post: '#c0b8ef', note: '#a9dccb', idea: '#e8c48c', draft: '#a9d3e4', concept: '#e4e6e8', tag: '#98a6a1', ghost: '#70746f'},
-  modules: {
-    works: {color: '#c3bcf2', filter: 'hue-rotate(215deg) saturate(1.1)'},
-    concepts: {color: '#e2e5e8', filter: 'hue-rotate(185deg) saturate(.3) brightness(1.15)'},
-    methods: {color: '#ace0cf', filter: 'hue-rotate(118deg) saturate(1)'},
-    ideas: {color: '#ecc98f', filter: 'saturate(1)'},
-    drafts: {color: '#acd6e8', filter: 'hue-rotate(158deg) saturate(1.05)'}
-  },
-  // 笔记类型标签配色：与上方 kinds/modules 同一套调色板，按「权威 → 个人 → 清单」冷暖递进。
+  // 模块（水母）的 color/filter/flip 已移入 graph.js 的 MODULES —— 那里是模块的唯一数据源，
+  // 新增一个模块只需改那一处。这里只保留与模块无关的调色板。
+  // 笔记类型标签配色：与上方 kinds 同一套调色板，按「权威 → 个人 → 清单」冷暖递进。
   types: {
     '文档': '#acd6e8',      // 青  —— 官方/权威说明
     '研究': '#c3bcf2',      // 薰衣草 —— 个人实践提炼

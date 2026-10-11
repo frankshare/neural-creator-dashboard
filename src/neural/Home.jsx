@@ -6,8 +6,9 @@ import {Analysis} from './Analysis';
 import {T} from './theme';
 import {CONFIG} from '../config';
 
-const FLIP = {works: 1, concepts: -1, methods: -1, ideas: -1, drafts: 1};
-export const MOD_STYLE = Object.fromEntries(Object.entries(T.modules).map(([id, m]) => [id, {...m, flip: FLIP[id]}]));
+// 模块的视觉样式统一从 graph.js 的 MODULES 派生（唯一数据源）。
+// 历史上朝向（flip）在这里单独写死一份、颜色在 theme.js 再写一份，加模块要改多处。
+export const MOD_STYLE = Object.fromEntries(MODULES.map(m => [m.id, {color: m.color, filter: m.filter, flip: m.flip}]));
 
 export const split = n => ({out: n.out - n.mutual, back: n.in - n.mutual, both: n.mutual});
 const fmt = v => v == null ? '—' : Number(v).toLocaleString('zh-CN');

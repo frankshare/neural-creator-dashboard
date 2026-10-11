@@ -28,22 +28,41 @@ export const LINK_KINDS = {
 export const LINK_EN = {contain: 'Contains', wiki: 'Wikilink', source: 'Source', tag: 'Topic', mention: 'Mention', resonance: 'Resonance'};
 export const CONTENT = new Set(['post', 'note', 'idea', 'draft']);
 
-const FOLDERS = [
-  {id: 'f:works', title: '作品库', path: '02-作品库', angle: 180},
-  {id: 'f:drafts', title: '创作台', path: '03-创作台', angle: 145},
-  {id: 'f:ideas', title: '选题池', path: '04-选题池', angle: 35},
-  {id: 'f:methods', title: '方法库', path: '05-方法库 methods', angle: 0}
-];
-
-// 首页围绕光球的五个模块；角度与图谱布局的目录锚点一致，背景网络会朝各自模块蔓延。
+// ── 模块定义：这是唯一的数据源 ──────────────────────────────────────────────
+// 新增/删除一个模块只改这里。历史上同一份信息散落在四处，加一个模块要同时改
+// graph.js 的 MODULES、graph.js 的 FOLDERS、Home.jsx 的 FLIP、theme.js 的 T.modules，
+// 漏一处就错位或没颜色。现在：
+//   color / filter / flip  ← 原 theme.js 的 T.modules 与 Home.jsx 的 FLIP
+//   FOLDERS 的 title/angle ← 由下面的 folder 字段反查，不再重复写一遍
+// 字段含义：
+//   kind   节点类型，moduleOf() 靠它把节点归属到模块（一个节点只属于一个模块）
+//   angle  围绕光球的角度，手工调过，要避开光球与右侧分析栏
+//   folder 对应的图谱目录锚点 id，concepts 是推导出来的、不挂目录，所以没有此字段
+//   icon   水母图标；page 点击后跳转的内页（没有则只展开不跳转）
 export const MODULES = [
-  {id: 'works', title: '作品库', en: 'Works', kind: 'post', folder: 'f:works', angle: 180, icon: 'works', page: 'library'},
-  {id: 'concepts', title: '概念网络', en: 'Concepts', kind: 'concept', angle: -90, icon: 'concept'},
-  {id: 'methods', title: '方法库', en: 'Methods', kind: 'note', folder: 'f:methods', angle: 0, icon: 'methods'},
-  {id: 'ideas', title: '选题池', en: 'Ideas', kind: 'idea', folder: 'f:ideas', angle: 35, icon: 'idea', page: 'ideas'},
-  {id: 'drafts', title: '创作台', en: 'Drafts', kind: 'draft', folder: 'f:drafts', angle: 145, icon: 'draft', page: 'drafts'}
+  {id: 'works', title: '作品库', en: 'Works', kind: 'post', folder: 'f:works', angle: 180, icon: 'works', page: 'library',
+   color: '#c3bcf2', filter: 'hue-rotate(215deg) saturate(1.1)', flip: 1},
+  {id: 'concepts', title: '概念网络', en: 'Concepts', kind: 'concept', angle: -90, icon: 'concept',
+   color: '#e2e5e8', filter: 'hue-rotate(185deg) saturate(.3) brightness(1.15)', flip: -1},
+  {id: 'methods', title: '方法库', en: 'Methods', kind: 'note', folder: 'f:methods', angle: 0, icon: 'methods',
+   color: '#ace0cf', filter: 'hue-rotate(118deg) saturate(1)', flip: -1},
+  {id: 'ideas', title: '选题池', en: 'Ideas', kind: 'idea', folder: 'f:ideas', angle: 35, icon: 'idea', page: 'ideas',
+   color: '#ecc98f', filter: 'saturate(1)', flip: -1},
+  {id: 'drafts', title: '创作台', en: 'Drafts', kind: 'draft', folder: 'f:drafts', angle: 145, icon: 'draft', page: 'drafts',
+   color: '#acd6e8', filter: 'hue-rotate(158deg) saturate(1.05)', flip: 1}
 ];
 export const moduleOf = node => MODULES.find(m => m.kind === node?.kind) || null;
+
+// 图谱里的目录锚点节点。title 与 angle 从 MODULES 反查，避免两处各写一份。
+const FOLDERS = [
+  {id: 'f:works', path: '02-作品库'},
+  {id: 'f:drafts', path: '03-创作台'},
+  {id: 'f:ideas', path: '04-选题池'},
+  {id: 'f:methods', path: '05-方法库 methods'}
+].map(f => {
+  const m = MODULES.find(m => m.folder === f.id);
+  return {...f, title: m?.title ?? f.id, angle: m?.angle ?? 0};
+});
 
 export const cleanTitle = t => String(t || '').replace(/^\d+[A-Z]?-☑️/, '').replace(/^\d+-/, '').replace(/_/g, ' · ');
 const contentOf = id => workContent.find(c => c.title === posts.find(p => p.id === id)?.title);
