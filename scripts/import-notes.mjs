@@ -24,7 +24,7 @@ import {fileURLToPath} from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DATA = join(ROOT, 'src/data');
 const INDEX = join(DATA, 'index.js');
-const indexFor = file => `// 看板读取的数据入口。默认使用虚构示例；运行 \`npm run import -- --vault <笔记文件夹>\` 后会切换到 my-data.js。\nexport * from './${file}';\n`;
+const indexFor = file => `// 看板读取的数据入口。默认使用虚构示例；运行 \`npm run import -- --vault <笔记文件夹>\` 后会切换到 my-data.js。\nexport * from './${file}';\n\n// 数据来源标记：'sample' = 仓库自带虚构示例，'imported' = 从你自己的笔记导入。\nexport const DATA_SOURCE = '${file === 'sample.js' ? 'sample' : 'imported'}';\n`;
 
 // —— 参数 ——
 const args = process.argv.slice(2);
@@ -34,6 +34,7 @@ for (let i = 0; i < args.length; i++) {
   if (a === '--vault') opt.vault = next();
   else if (['--works', '--methods', '--ideas', '--drafts'].includes(a)) opt[a.slice(2)].push(next());
   else if (a === '--all-as-notes') opt.allAsNotes = true;
+  else if (a === '--group-works') opt.groupWorks = true;
   else if (a === '--account') opt.account = next();
   else if (a === '--followers') opt.followers = Number(next());
   else if (a === '--max-works') opt.maxWorks = Number(next());
@@ -137,10 +138,32 @@ for (const file of files) {
 }
 
 // —— 生成数据 ——
-const works = bucket.works.map(x => {
+// --group-works：把同一个目录下的多个笔记合并成一条「作品」（优先取 导读.md 作主笔记）。
+// 归档目录的常见形态是「导读.md + 帖子.md + 链接内容.md」，不聚合会把一条帖子算成三条作品。
+function groupWorks(items) {
+  const groups = new Map();
+  for (const x of items) {
+    const dir = x.rel.split(sep).slice(0, -1).join('/');
+    if (!groups.has(dir)) groups.set(dir, []);
+    groups.get(dir).push(x);
+  }
+  return [...groups.values()].map(files => {
+    const primary = files.find(f => basename(f.file).toLowerCase() === '导读.md') || files[0];
+    const body = files.map(f => clean(f.body)).join('\n\n---\n\n');
+    const tags = [...new Set(files.flatMap(f => tagsOf(f.fm, f.body)))].slice(0, 12);
+    return {primary, body, tags};
+  });
+}
+const workItems = opt.groupWorks
+  ? groupWorks(bucket.works)
+  : bucket.works.map(x => ({primary: x, body: clean(x.body), tags: tagsOf(x.fm, x.body)}));
+
+const works = workItems.map(({primary: x, body, tags}) => {
   const media = /视频|video/i.test(String(pick(x.fm, ['media', '类型', 'type', '形式']) || '')) ? 'video' : 'images';
+  // 笔记类型（文档 / 研究 / 合集 / Skill合集 / 工具合集 …），用于看板上的彩色分类标签。
+  const noteType = String(pick(x.fm, ['type', '分类', 'category']) || '').trim();
   const p = {
-    title: x.title, date: dateOf(pick(x.fm, ['date', '发布时间', '发布日期', 'published', 'publishedAt', 'created', '创建时间']), x.file),
+    title: x.title, type: noteType, date: dateOf(pick(x.fm, ['date', '发布时间', '发布日期', 'published', 'publishedAt', 'created', '创建时间']), x.file),
     views: num(pick(x.fm, ['views', '观看', '浏览', '阅读', '播放'])) ?? 0,
     likes: num(pick(x.fm, ['likes', '点赞'])) ?? 0,
     comments: num(pick(x.fm, ['comments', '评论'])) ?? 0,
@@ -151,7 +174,7 @@ const works = bucket.works.map(x => {
     ctr: num(pick(x.fm, ['ctr', '点击率', '封面点击率'])),
     duration: num(pick(x.fm, ['duration', '平均观看', '平均观看时长', '时长']))
   };
-  return {post: p, content: {title: x.title, body: clean(x.body), tags: tagsOf(x.fm, x.body), media}};
+  return {post: p, content: {title: x.title, type: noteType, body, tags, media}};
 }).sort((a, b) => b.post.date.localeCompare(a.post.date)).slice(0, maxWorks)
   .map((w, i) => ({...w, post: {id: 'w' + (i + 1), ...w.post}}));
 
@@ -187,8 +210,7 @@ const snapshot = {
 };
 
 if (!works.length) {
-  console.error(`没有找到作品笔记。请确认作品放在名字包含「作品 / works」的文件夹里，或用 --works <文件夹> 指定。\n识别到：方法笔记 ${notes.length}、选题 ${ideas.length}、草稿 ${drafts.length}。`);
-  process.exit(2);
+  console.warn(`提示：没有找到作品笔记，「作品库」模块会是空的。想填充它，请把作品放进名字包含「作品 / works」的文件夹，或用 --works <文件夹> 指定。\n已识别：方法笔记 ${notes.length}、选题 ${ideas.length}、草稿 ${drafts.length}。`);
 }
 
 const J = v => JSON.stringify(v, null, 1);

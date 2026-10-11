@@ -10,6 +10,20 @@ export const T = {
     ideas: {color: '#ecc98f', filter: 'saturate(1)'},
     drafts: {color: '#acd6e8', filter: 'hue-rotate(158deg) saturate(1.05)'}
   },
+  // 笔记类型标签配色：与上方 kinds/modules 同一套调色板，按「权威 → 个人 → 清单」冷暖递进。
+  types: {
+    '文档': '#acd6e8',      // 青  —— 官方/权威说明
+    '研究': '#c3bcf2',      // 薰衣草 —— 个人实践提炼
+    '合集': '#e6cf98',      // 香槟金 —— 异构清单
+    'Skill合集': '#ace0cf',  // 薄荷 —— 可安装 Skill 包
+    '工具合集': '#e3b3c4',   // 玫瑰 —— 可运行工具/仓库
+    '功能': '#a9dccb',
+    '设计': '#d9b6c1',
+    '修复': '#ff7385',
+    '优化': '#6be3ad',
+    '发布': '#e8c48c',
+    '探索': '#e4e6e8'
+  },
   media: {orb: asset('media/orb.mp4'), orbPoster: asset('media/orb.jpg'), jelly: asset('media/jellyfish.mp4'), jellyPoster: asset('media/jellyfish.jpg')},
   pulse: {out: ['#fffaf0', '#ecd39e'], in: ['#ffffff', '#e3b3c4']},
   ring: ['#ecd9a6', '#c9cac5'],

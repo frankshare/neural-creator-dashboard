@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {KINDS, CONTENT, MODULES, neighbors, latent, askGraph, LINK_KINDS, LINK_EN} from './graph';
 import {Icon} from './icons';
+import {T} from './theme';
 
 const fmt = (v, d = 0) => v == null || Number.isNaN(v) ? '—' : Number(v).toLocaleString('zh-CN', {minimumFractionDigits: d, maximumFractionDigits: d});
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -121,7 +122,7 @@ function analyze(graph, node) {
     const engage = p.views ? (p.likes + p.comments + p.saves + p.shares) / p.views * 100 : null;
     const ideas = latent(graph, node.id).filter(x => graph.index.get(x.id).kind === 'idea');
     return {
-      badge: ['已发布', 'Published'], status: `首发 First published ${p.date} · ${node.tags.length} 个话题 topics`,
+      badge: ['已发布', 'Published'], badgeType: p.type || null, status: `首发 First published ${p.date} · ${node.tags.length} 个话题 topics`,
       action: ['查看作品', 'Open in Works', {type: 'page', page: 'library', id: p.id}],
       metric: {label: '收藏率', en: 'Save rate', value: r, level: r >= 6 ? ['高', 'High', 'high'] : r >= 3 ? ['中', 'Moderate', 'mid'] : ['低', 'Low', 'low'],
         delta: `${r - avg >= 0 ? '+' : ''}${(r - avg).toFixed(1)}%`, deltaEn: 'vs. other works', bars: P.map(x => ({v: rate(x), on: x === node, label: x.short}))},
@@ -216,6 +217,7 @@ export function Analysis({graph, node, module, onGo, onAction, onClose}) {
       </div>
       <div className="an-status">
         <span className="badge">{a.badge[0]} <em>{a.badge[1]}</em></span>
+      {a.badgeType ? <span className="type-chip" style={{'--tc': T.types[a.badgeType] || '#e6cf98'}}>{a.badgeType}</span> : null}
         <p>{a.status}</p>
         <div className="an-actions">
           {a.action2 && <button className="an-explore ghost" onClick={() => onAction(a.action2[2])}>{a.action2[0]} <em>{a.action2[1]}</em></button>}

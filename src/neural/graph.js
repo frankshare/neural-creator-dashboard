@@ -310,7 +310,8 @@ export function askGraph(graph, question, scope) {
     }
   } else if (/表现|观看|最好|数据|收藏/.test(q)) {
     const ps = C.filter(n => n.kind === 'post').sort((a, b) => b.post.views - a.post.views);
-    cards.push({tone: 'gold', title: '作品表现', en: 'Performance', text: `观看最高：${ps[0].short}（${ps[0].post.views}）。下面按观看排序。`, items: ps.map(n => n.id), meta: ps.map(n => `${n.post.views} 观看 · ${n.post.saves} 收藏`)});
+    if (ps.length) cards.push({tone: 'gold', title: '作品表现', en: 'Performance', text: `观看最高：${ps[0].short}（${ps[0].post.views}）。下面按观看排序。`, items: ps.map(n => n.id), meta: ps.map(n => `${n.post.views} 观看 · ${n.post.saves} 收藏`)});
+    else cards.push({tone: 'warn', title: '还没有作品', en: 'No works', text: '当前数据里没有作品笔记，所以没有观看数据。把作品放进名字含「作品 / works」的文件夹，或用 --works 指定后重新导入。', items: []});
   } else {
     const words = q.replace(/[？?。，,！!]/g, ' ').split(/\s+/).filter(w => w.length >= 1);
     const hits = graph.nodes.filter(n => n.kind !== 'core').map(n => {

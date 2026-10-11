@@ -1,6 +1,6 @@
 import React, {useCallback, useDeferredValue, useEffect, useMemo, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {seedIdeas, seedDrafts, snapshot} from '../data';
+import {seedIdeas, seedDrafts, snapshot, DATA_SOURCE} from '../data';
 import {posts, monthPosts} from './works';
 import {CONFIG, asset} from '../config';
 import {buildGraph, forceLayout, stats, KINDS} from './graph';
@@ -10,6 +10,9 @@ import {Count} from './Analysis';
 import {Icon} from './icons';
 import {T} from './theme';
 import './neural.css';
+
+// 'sample' = 仓库自带虚构示例数据；'imported' = 从你自己的笔记库导入。
+const isSample = DATA_SOURCE === 'sample';
 
 // 选题、草稿与目标保存在当前浏览器（localStorage）。
 function useSaved(key, fallback) {
@@ -50,16 +53,16 @@ const initialPage = () => { const h = location.hash.slice(1); return navs.some(n
 function Snapshot({goal, onGoal, ideas, drafts, onIdea, onDraft, onLibrary}) {
   const total = posts.reduce((s, p) => s + p.views, 0);
   const stats4 = [['已发布笔记', 'Published', posts.length], ['账号粉丝', 'Followers', snapshot.followers], ['累计观看', 'Total views', total], ['已知笔记涨粉', 'Known follows', posts.reduce((s, p) => s + (p.follows ?? 0), 0)]];
-  const max = Math.max(...posts.map(p => p.views));
+  const max = Math.max(1, ...posts.map(p => p.views));
   return <section className="snapshot" aria-label="账号数据快照">
-    <div className="snapshot-head"><p className="eyebrow">SNAPSHOT <span>账号快照</span></p><p className="quiet">{snapshot.source} · {snapshot.capturedAt} <em>Sample data</em></p></div>
+    <div className="snapshot-head"><p className="eyebrow">SNAPSHOT <span>账号快照</span></p><p className="quiet">{snapshot.source} · {snapshot.capturedAt} <em>{isSample ? 'Sample data' : 'Imported'}</em></p></div>
     <div className="kpi-band glass">{stats4.map(([zh, en, v]) => <div key={zh}><span>{zh} <em>{en}</em></span><strong><Count value={v}/></strong></div>)}</div>
     <div className="snapshot-grid">
       <section className="glass card perf">
         <header><h2>作品表现 <em>Performance</em></h2><button className="text-btn" onClick={onLibrary}>全部作品 <em>All works</em><Icon name="arrow" size={14}/></button></header>
         <table><thead><tr><th>笔记 <em>Note</em></th><th>观看 <em>Views</em></th><th>收藏 <em>Saves</em></th><th>涨粉 <em>Follows</em></th></tr></thead>
-          <tbody>{[...posts].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6).map(p => <tr key={p.id} onClick={() => onLibrary(p.id)}><td><span className="t-title">{p.title}</span><span className="t-bar"><i style={{'--w': p.views / max}}/></span></td><td>{p.views.toLocaleString('zh-CN')}</td><td>{p.saves}</td><td>{p.follows ?? '—'}</td></tr>)}</tbody></table>
-        <p className="quiet">最近 6 篇 · 共 {posts.length} 篇 · 缺失数据保留为「—」<em>Latest 6 of {posts.length}</em></p>
+          <tbody>{[...posts].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6).map(p => <tr key={p.id} onClick={() => onLibrary(p.id)}><td><span className="t-title">{p.title}</span>{p.type ? <span className="type-chip" style={{'--tc': T.types[p.type] || '#e6cf98'}}>{p.type}</span> : null}<span className="t-bar"><i style={{'--w': p.views / max}}/></span></td><td>{p.views.toLocaleString('zh-CN')}</td><td>{p.saves}</td><td>{p.follows ?? '—'}</td></tr>)}</tbody></table>
+        <p className="quiet">最近 {Math.min(6, posts.length)} 篇 · 共 {posts.length} 篇 · 缺失数据保留为「—」<em>Latest {Math.min(6, posts.length)} of {posts.length}</em></p>
       </section>
       <section className="glass card plan">
         <header><h2>创作计划 <em>Plan</em></h2></header>
@@ -83,7 +86,7 @@ function App() {
   const [drafts, setDrafts] = useSaved(CONFIG.storagePrefix + '-drafts-v1', seedDrafts);
   const [active, setActive] = useState(() => drafts[0]?.id);
   const [focus, setFocus] = useState({mod: null, sel: null});
-  const [libSel, setLibSel] = useState(posts[1].id);
+  const [libSel, setLibSel] = useState(() => posts[1]?.id ?? posts[0]?.id ?? null);
   const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null);
   const [goalInput, setGoalInput] = useState(String(goal));
@@ -155,7 +158,9 @@ function App() {
     </main>
 
     <footer className="site-foot">
-      <button onClick={() => setModal('about')}><Icon name="info" size={13}/>当前展示的是虚构示例数据，换成你自己的数据见 README <em>Sample data</em></button>
+      {isSample
+        ? <button onClick={() => setModal('about')}><Icon name="info" size={13}/>当前展示的是虚构示例数据，换成你自己的数据见 README <em>Sample data</em></button>
+        : <button onClick={() => setModal('about')}><Icon name="info" size={13}/>数据导入自本地笔记库，改动不会写回你的笔记 <em>Imported</em></button>}
       <span>{CONFIG.footer.zh}<em>{CONFIG.footer.en}</em></span>
     </footer>
 
@@ -167,7 +172,7 @@ function App() {
         <p>数据来源 <em>Source</em>：{snapshot.source}；笔记首发 {snapshot.publishedFrom} — {snapshot.publishedTo}。</p>
         <hr/>
         <h3>图谱怎么来的 <em>How the graph is built</em></h3>
-        <p>全部由 <code>src/data/sample.js</code> 里的资料在浏览器中推导，不读取外部 Obsidian 仓库：</p>
+        <p>全部由 <code>src/data/{isSample ? 'sample.js' : 'my-data.js'}</code> 里的资料在浏览器中推导，不读取外部 Obsidian 仓库：</p>
         <ul>
           <li><b>[[双链]] Wikilinks</b>：方法库笔记与草稿正文中的双链；找不到对应笔记的记为「未创建」。</li>
           <li><b>话题 Topics</b>：作品正文里的 # 话题标签。</li>
@@ -178,6 +183,10 @@ function App() {
         <p>作品库：{posts.length} 篇<b>示例作品</b>，账号、标题、日期与指标均为虚构，仅用于展示效果。</p>
         <p>当前：{s.content} 条内容 · {s.links} 条连接 · {s.mutual} 组双向 · {s.ghosts} 个未创建双链。</p>
         <p className="quiet">图谱分析是本地规则检索，未调用 AI。选题、草稿与目标保存在当前浏览器，不写入 Obsidian、不发布到平台。<em>Local rules only · no AI · nothing is published.</em></p>
+        <hr/>
+        <h3>许可与署名 <em>Licence &amp; attribution</em></h3>
+        <p>本工作台基于 <a href="https://github.com/luoluo-121/neural-creator-dashboard" target="_blank" rel="noreferrer">luoluo-121/neural-creator-dashboard</a> 改造，依 <b>PolyForm Noncommercial License 1.0.0</b> 用于个人、非商业用途。原项目的完整条款见仓库根目录的 <code>LICENSE</code> 与 <code>NOTICE.md</code>。</p>
+        <p className="quiet">Required Notice: Copyright (c) 2026 luoluo-121 and neural-creator-dashboard contributors<br/>0.1.0 版本曾以 MIT 发布，该版本已授出的权利不因本次许可变更而受影响。导入的个人笔记版权仍归本人所有，不因导入而改变归属。<em>Personal, noncommercial use only.</em></p>
       </div>
     </Modal>}
     {modal === 'goal' && <Modal title="本月发布目标" en="Monthly goal" onClose={close}>
