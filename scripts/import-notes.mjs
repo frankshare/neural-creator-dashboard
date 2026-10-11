@@ -151,8 +151,15 @@ const PLATFORM_ALIAS = [
   [/(微博|weibo)/i, '微博'],
   [/(即刻|jike)/i, '即刻']
 ];
+// 有些目录名只是「一个桶」，不携带平台信息（4-我的作品 / 3-资料 / 收藏 …）。
+// 这些目录要把平台判定权交给 frontmatter，而不是把目录名本身当成平台名。
+const GENERIC_DIR = /^(我?的?作品|作品库|收藏|资料|笔记|归档|草稿|选题|materials?|works?|collects?|notes?|drafts?|ideas?)$/i;
 function platformFromDir(dir) {
-  const base = String(dir).replace(/[\s_-]*(归档|书签|收藏|笔记|合集|notes?|collection|archive)$/i, '').trim() || String(dir);
+  const base = String(dir)
+    .replace(/^\d+[-_.、]/, '')                                                      // 去掉 vault 编号前缀（4-我的作品 → 我的作品）
+    .replace(/[\s_-]*(归档|书签|收藏|笔记|合集|notes?|collection|archive)$/i, '')     // 去掉「X书签归档」这类后缀
+    .trim() || String(dir);
+  if (GENERIC_DIR.test(base)) return '';                                            // 只是桶 → 交给 frontmatter
   for (const [re, name] of PLATFORM_ALIAS) if (re.test(base)) return name;
   return base;
 }
