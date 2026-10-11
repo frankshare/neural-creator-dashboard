@@ -1,7 +1,7 @@
 // 神经图谱数据：全部由 src/data/sample.js 的资料在浏览器中推导，不读取任何外部仓库。
 // 连接来源：笔记正文 [[双链]]、目录归属、选题转草稿记录、作品话题标签、正文提及的概念词，
 // 以及两篇内容共同提及 ≥2 个概念时形成的「双向共振」。
-import {posts, workContent} from './works';
+import {posts, workContent, collects, collectItems} from './works';
 import {notes as notesRaw, concepts as CONCEPTS} from '../data';
 import {CONFIG} from '../config';
 import {T} from './theme';
@@ -10,6 +10,7 @@ export const KINDS = {
   core: {label: '创作空间', en: 'Core', color: T.kinds.core},
   folder: {label: '目录', en: 'Folder', color: T.kinds.folder},
   post: {label: '作品', en: 'Work', color: T.kinds.post},
+  collect: {label: '收藏', en: 'Collect', color: T.kinds.collect},
   note: {label: '方法笔记', en: 'Method note', color: T.kinds.note},
   idea: {label: '选题', en: 'Idea', color: T.kinds.idea},
   draft: {label: '草稿', en: 'Draft', color: T.kinds.draft},
@@ -26,7 +27,7 @@ export const LINK_KINDS = {
   resonance: '双向共振'
 };
 export const LINK_EN = {contain: 'Contains', wiki: 'Wikilink', source: 'Source', tag: 'Topic', mention: 'Mention', resonance: 'Resonance'};
-export const CONTENT = new Set(['post', 'note', 'idea', 'draft']);
+export const CONTENT = new Set(['post', 'collect', 'note', 'idea', 'draft']);
 
 // ── 模块定义：这是唯一的数据源 ──────────────────────────────────────────────
 // 新增/删除一个模块只改这里。历史上同一份信息散落在四处，加一个模块要同时改
@@ -42,6 +43,11 @@ export const CONTENT = new Set(['post', 'note', 'idea', 'draft']);
 export const MODULES = [
   {id: 'works', title: '作品库', en: 'Works', kind: 'post', folder: 'f:works', angle: 180, icon: 'works', page: 'library',
    color: '#c3bcf2', filter: 'hue-rotate(215deg) saturate(1.1)', flip: 1},
+  // 「收藏」= 收藏的他人内容（参考资料），与「作品库」结构相同但语义相反：
+  // 作品是「你发布的、指标是你的表现」，收藏是「别人发布的、指标是别人的表现」。
+  // 放在 90°（正下方）—— 0/35/145/180 已被其他模块占用，-90 是概念网络。
+  {id: 'collects', title: '收藏', en: 'Collects', kind: 'collect', folder: 'f:collects', angle: 90, icon: 'save', page: 'collects',
+   color: '#e3b3c4', filter: 'hue-rotate(300deg) saturate(1.15)', flip: 1},
   {id: 'concepts', title: '概念网络', en: 'Concepts', kind: 'concept', angle: -90, icon: 'concept',
    color: '#e2e5e8', filter: 'hue-rotate(185deg) saturate(.3) brightness(1.15)', flip: -1},
   {id: 'methods', title: '方法库', en: 'Methods', kind: 'note', folder: 'f:methods', angle: 0, icon: 'methods',
@@ -56,6 +62,7 @@ export const moduleOf = node => MODULES.find(m => m.kind === node?.kind) || null
 // 图谱里的目录锚点节点。title 与 angle 从 MODULES 反查，避免两处各写一份。
 const FOLDERS = [
   {id: 'f:works', path: '02-作品库'},
+  {id: 'f:collects', path: '06-收藏 collects'},
   {id: 'f:drafts', path: '03-创作台'},
   {id: 'f:ideas', path: '04-选题池'},
   {id: 'f:methods', path: '05-方法库 methods'}
@@ -66,6 +73,8 @@ const FOLDERS = [
 
 export const cleanTitle = t => String(t || '').replace(/^\d+[A-Z]?-☑️/, '').replace(/^\d+-/, '').replace(/_/g, ' · ');
 const contentOf = id => workContent.find(c => c.title === posts.find(p => p.id === id)?.title);
+// 收藏与作品结构相同，各配一个按标题对齐正文的查找函数。
+const collectOf = id => collectItems.find(c => c.title === collects.find(p => p.id === id)?.title);
 export const postMedia = post => contentOf(post.id) || null;
 
 export function buildGraph({ideas = [], drafts = []} = {}) {
@@ -90,6 +99,14 @@ export function buildGraph({ideas = [], drafts = []} = {}) {
     const c = contentOf(p.id);
     add({id: 'post:' + p.id, kind: 'post', title: p.title, short: p.title.replace(/^Obsidian[：:]/, ''), path: '02-作品库/' + p.title, folder: 'f:works', text: p.title + '\n' + (c?.body || ''), body: c?.body || '', date: p.date, post: p, media: c?.media, cover: c?.cover, tags: c?.tags || []});
     link('f:works', 'post:' + p.id, 'contain');
+  }
+
+  // 收藏：收藏的他人内容。节点结构与作品一致（同样带 post 字段，供分析栏复用），
+  // 只是 kind 用 collect，这样 moduleOf() 会把它归到「收藏」模块而不是「作品库」。
+  for (const p of collects) {
+    const c = collectOf(p.id);
+    add({id: 'collect:' + p.id, kind: 'collect', title: p.title, short: p.title, path: '06-收藏 collects/' + p.title, folder: 'f:collects', text: p.title + '\n' + (c?.body || ''), body: c?.body || '', date: p.date, post: p, media: c?.media, cover: c?.cover, tags: c?.tags || []});
+    link('f:collects', 'collect:' + p.id, 'contain');
   }
 
   // 方法库笔记与子目录。

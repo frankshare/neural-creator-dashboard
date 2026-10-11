@@ -30,11 +30,11 @@ const indexFor = file => `// 看板读取的数据入口。默认使用虚构示
 
 // —— 参数 ——
 const args = process.argv.slice(2);
-const opt = {works: [], methods: [], ideas: [], drafts: []};
+const opt = {works: [], collects: [], methods: [], ideas: [], drafts: []};
 for (let i = 0; i < args.length; i++) {
   const a = args[i], next = () => args[++i];
   if (a === '--vault') opt.vault = next();
-  else if (['--works', '--methods', '--ideas', '--drafts'].includes(a)) opt[a.slice(2)].push(next());
+  else if (['--works', '--collects', '--methods', '--ideas', '--drafts'].includes(a)) opt[a.slice(2)].push(next());
   else if (a === '--all-as-notes') opt.allAsNotes = true;
   else if (a === '--group-works') opt.groupWorks = true;
   else if (a === '--account') opt.account = next();
@@ -111,6 +111,9 @@ const clean = body => body.replace(/\r/g, '').trim().slice(0, 6000);
 // —— 分类 ——
 const RULES = [
   ['works', /(作品|works?$|published|已发布)/i],
+  // 收藏的他人内容：和「作品」结构相同（有标题/日期/平台/指标），但语义是参考资料。
+  // 必须排在 methods 之前 —— 「归档」这类词不该掉进方法库。
+  ['collects', /(收藏|书签|归档|剪藏|collects?$|clips?$|bookmarks?$)/i],
   ['drafts', /(草稿|创作台|drafts?$|正在写|写作中)/i],
   ['ideas', /(选题|ideas?$|灵感)/i],
   ['methods', /(方法|methods?$|模板|templates?$|流程|workflow|知识|卡片|notes?$)/i]
@@ -118,7 +121,7 @@ const RULES = [
 const norm = p => p.split(/[\\/]/).filter(Boolean).join('/');
 function classify(rel) {
   const dirs = rel.split(sep).slice(0, -1);
-  for (const kind of ['works', 'drafts', 'ideas', 'methods']) for (const f of opt[kind]) {
+  for (const kind of ['works', 'collects', 'drafts', 'ideas', 'methods']) for (const f of opt[kind]) {
     const prefix = norm(f);
     if (norm(rel).startsWith(prefix + '/')) return {kind, root: prefix.split('/').length};
   }
@@ -156,14 +159,15 @@ function platformFromDir(dir) {
 function platformFor(kind, rel, fm, root) {
   const explicit = pick(fm, ['platform', '平台', '来源平台']);
   if (explicit) return Array.isArray(explicit) ? explicit.join(', ') : String(explicit).trim();
-  if (kind !== 'works') return '';
+  // 作品与收藏都天然绑定平台（一篇内容必然来自某个平台），从分类根目录名推断。
+  if (kind !== 'works' && kind !== 'collects') return '';
   const parts = rel.split(sep).filter(Boolean);
   const dir = root > 0 ? parts[root - 1] : parts[0];
   return dir ? platformFromDir(dir) : '';
 }
 
 const files = walk(VAULT);
-const bucket = {works: [], methods: [], ideas: [], drafts: []};
+const bucket = {works: [], collects: [], methods: [], ideas: [], drafts: []};
 for (const file of files) {
   const rel = relative(VAULT, file), c = classify(rel);
   if (!c) continue;
@@ -189,47 +193,52 @@ function groupWorks(items) {
     return {primary, body, tags};
   });
 }
-const workItems = opt.groupWorks
-  ? groupWorks(bucket.works)
-  : bucket.works.map(x => ({primary: x, body: clean(x.body), tags: tagsOf(x.fm, x.body)}));
+// 把一批「作品形态」的笔记转成看板数据。
+// 「你自己的作品」(works) 和「收藏的他人内容」(collects) 结构完全相同 ——
+// 都有标题/日期/平台/指标/正文，所以共用这一个函数，只是 id 前缀不同。
+function buildEntries(items, group, idPrefix) {
+  const list = group ? groupWorks(items) : items.map(x => ({primary: x, body: clean(x.body), tags: tagsOf(x.fm, x.body)}));
+  return list.map(({primary: x, body, tags}) => {
+    const media = /视频|video/i.test(String(pick(x.fm, ['media', '类型', 'type', '形式']) || '')) ? 'video' : 'images';
+    // 笔记类型（文档 / 研究 / 合集 / Skill合集 / 工具合集 …），用于看板上的彩色分类标签。
+    const noteType = String(pick(x.fm, ['type', '分类', 'category']) || '').trim();
+    // 来源平台（X / 抖音 / 小红书 …）：按平台分组、按平台渲染指标都靠它。
+    const platform = x.platform || '';
+    // 平台专属指标：按 src/platform-metrics.js 的定义从 frontmatter 读，键名认中英别名。
+    // 只保留真正读到值的项 —— UI 据此判断「这个指标有没有数据」，而不是拿 0 冒充。
+    const defs = metricsFor(platform);
+    const metrics = {};
+    for (const d of defs) {
+      const v = num(pick(x.fm, d.aliases));
+      if (v != null) metrics[d.key] = v;
+    }
+    // legacy 映射：定义里声明了 legacy 的指标，回填到对应通用字段。
+    // 各平台对同一件事叫法不同（X 叫「回复」、小红书叫「评论」），在定义里指到同一个通用字段。
+    const legacyOf = {};
+    for (const d of defs) if (d.legacy && metrics[d.key] != null) legacyOf[d.legacy] = metrics[d.key];
+    // 平台指标优先：同一个数字既进 metrics，也回填到通用字段 ——
+    // 卡片、KPI 带、排行榜这些还在读通用字段的地方才不会显示 0。
+    // 用 ?? 而不是 ||，这样真实的 0 不会被当成「没数据」。
+    const g = (k, aliases, dflt) => legacyOf[k] ?? metrics[k] ?? num(pick(x.fm, aliases)) ?? dflt;
+    const p = {
+      title: x.title, type: noteType, platform, metrics, date: dateOf(pick(x.fm, ['date', '发布时间', '发布日期', 'published', 'publishedAt', 'created', '创建时间']), x.file),
+      views: g('views', ['views', '观看', '浏览', '阅读', '播放'], 0),
+      likes: g('likes', ['likes', '点赞'], 0),
+      comments: g('comments', ['comments', '评论'], 0),
+      saves: g('saves', ['saves', '收藏', '书签'], 0),
+      follows: g('follows', ['follows', '涨粉'], null),
+      shares: g('shares', ['shares', '分享', '转发'], 0),
+      impressions: g('impressions', ['impressions', '曝光'], null),
+      ctr: g('ctr', ['ctr', '点击率', '封面点击率'], null),
+      duration: num(pick(x.fm, ['duration', '平均观看', '平均观看时长', '时长']))
+    };
+    return {post: p, content: {title: x.title, type: noteType, platform, body, tags, media}};
+  }).sort((a, b) => b.post.date.localeCompare(a.post.date)).slice(0, maxWorks)
+    .map((w, i) => ({...w, post: {id: idPrefix + (i + 1), ...w.post}}));
+}
 
-const works = workItems.map(({primary: x, body, tags}) => {
-  const media = /视频|video/i.test(String(pick(x.fm, ['media', '类型', 'type', '形式']) || '')) ? 'video' : 'images';
-  // 笔记类型（文档 / 研究 / 合集 / Skill合集 / 工具合集 …），用于看板上的彩色分类标签。
-  const noteType = String(pick(x.fm, ['type', '分类', 'category']) || '').trim();
-  // 来源平台（X / 抖音 / 小红书 …）：作品库按平台分组、分析栏按平台渲染指标都靠它。
-  const platform = x.platform || '';
-  // 平台专属指标：按 src/platform-metrics.js 的定义从 frontmatter 读，键名认中英别名。
-  // 只保留真正读到值的项 —— UI 据此判断「这个指标有没有数据」，而不是拿 0 冒充。
-  const defs = metricsFor(platform);
-  const metrics = {};
-  for (const d of defs) {
-    const v = num(pick(x.fm, d.aliases));
-    if (v != null) metrics[d.key] = v;
-  }
-  // 平台指标优先：同一个数字（如 X 的「书签」）既进 metrics，也回填到通用字段 ——
-  // 作品卡片、KPI 带、排行榜这些还在读通用字段的地方才不会显示 0。
-  // 用 ?? 而不是 ||，这样真实的 0 不会被当成「没数据」。
-  // legacy 映射：定义里声明了 legacy 的指标，回填到对应通用字段。
-  // 各平台对同一件事叫法不同（X 叫「回复」、小红书叫「评论」），在定义里指到同一个通用字段。
-  const legacyOf = {};
-  for (const d of defs) if (d.legacy && metrics[d.key] != null) legacyOf[d.legacy] = metrics[d.key];
-  const g = (k, aliases, dflt) => legacyOf[k] ?? metrics[k] ?? num(pick(x.fm, aliases)) ?? dflt;
-  const p = {
-    title: x.title, type: noteType, platform, metrics, date: dateOf(pick(x.fm, ['date', '发布时间', '发布日期', 'published', 'publishedAt', 'created', '创建时间']), x.file),
-    views: g('views', ['views', '观看', '浏览', '阅读', '播放'], 0),
-    likes: g('likes', ['likes', '点赞'], 0),
-    comments: g('comments', ['comments', '评论'], 0),
-    saves: g('saves', ['saves', '收藏', '书签'], 0),
-    follows: g('follows', ['follows', '涨粉'], null),
-    shares: g('shares', ['shares', '分享', '转发'], 0),
-    impressions: g('impressions', ['impressions', '曝光'], null),
-    ctr: g('ctr', ['ctr', '点击率', '封面点击率'], null),
-    duration: num(pick(x.fm, ['duration', '平均观看', '平均观看时长', '时长']))
-  };
-  return {post: p, content: {title: x.title, type: noteType, platform, body, tags, media}};
-}).sort((a, b) => b.post.date.localeCompare(a.post.date)).slice(0, maxWorks)
-  .map((w, i) => ({...w, post: {id: 'w' + (i + 1), ...w.post}}));
+const works = buildEntries(bucket.works, opt.groupWorks, 'w');
+const collects = buildEntries(bucket.collects, opt.groupWorks, 'c');
 
 const notes = bucket.methods.slice(0, maxNotes).map((x, i) => {
   const parts = x.rel.split(sep);
@@ -251,7 +260,7 @@ const drafts = bucket.drafts.map((x, i) => {
 
 // 概念词：至少在两条内容里出现的话题标签，取出现最多的 20 个。
 const count = new Map();
-for (const t of [...works.flatMap(w => w.content.tags), ...notes.flatMap(n => n.tags)]) count.set(t, (count.get(t) || 0) + 1);
+for (const t of [...works.flatMap(w => w.content.tags), ...collects.flatMap(c => c.content.tags), ...notes.flatMap(n => n.tags)]) count.set(t, (count.get(t) || 0) + 1);
 const concepts = [...count].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([t]) => [t, [t.toLowerCase()]]);
 
 const dates = works.map(w => w.post.date.slice(0, 10)).sort();
@@ -263,7 +272,7 @@ const snapshot = {
 };
 
 if (!works.length) {
-  console.warn(`提示：没有找到作品笔记，「作品库」模块会是空的。想填充它，请把作品放进名字包含「作品 / works」的文件夹，或用 --works <文件夹> 指定。\n已识别：方法笔记 ${notes.length}、选题 ${ideas.length}、草稿 ${drafts.length}。`);
+  console.warn(`提示：「作品库」是空的 —— 它装的是**你自己发布的作品**（指标是你的表现）。\n想填充它，请把你自己的作品放进名字包含「作品 / works」的文件夹，或用 --works <文件夹> 指定。\n收藏的他人内容应该用 --collects 指定，它会进「收藏」模块。\n已识别：收藏 ${collects.length}、方法笔记 ${notes.length}、选题 ${ideas.length}、草稿 ${drafts.length}。`);
 }
 
 const J = v => JSON.stringify(v, null, 1);
@@ -275,6 +284,10 @@ export const snapshot = ${J(snapshot)};
 export const posts = ${J(works.map(w => w.post))};
 
 export const postContent = ${J(works.map(w => w.content))};
+
+export const collects = ${J(collects.map(c => c.post))};
+
+export const collectContent = ${J(collects.map(c => c.content))};
 
 export const notes = ${J(notes.map(({tags, ...n}) => n))};
 
@@ -289,7 +302,8 @@ mkdirSync(dirname(target), {recursive: true});
 writeFileSync(target, out);
 if (!opt.out) writeFileSync(INDEX, indexFor('my-data.js'));
 
-console.log(`导入完成：作品 ${works.length}、方法笔记 ${notes.length}、选题 ${ideas.length}、草稿 ${drafts.length}、概念词 ${concepts.length}`);
+console.log(`导入完成：作品 ${works.length}、收藏 ${collects.length}、方法笔记 ${notes.length}、选题 ${ideas.length}、草稿 ${drafts.length}、概念词 ${concepts.length}`);
 console.log(`输出：${relative(process.cwd(), target) || target}${opt.out ? '' : '（看板已切换到这份数据）'}`);
 if (!concepts.length) console.log('提示：没有生成概念词（需要同一个话题标签出现在至少两条笔记里），可以手动编辑输出文件末尾的 concepts。');
 if (bucket.works.length > maxWorks) console.log(`提示：作品共 ${bucket.works.length} 篇，只取了最新的 ${maxWorks} 篇（--max-works 可调整）。`);
+if (bucket.collects.length > maxWorks) console.log(`提示：收藏共 ${bucket.collects.length} 篇，只取了最新的 ${maxWorks} 篇（--max-works 可调整）。`);

@@ -633,3 +633,9 @@ export const concepts = [
     ]
   ]
 ];
+
+// 收藏模块（收藏的他人内容）。示例数据里留空 —— 这个模块的意义是装你自己收藏的东西，
+// 虚构几条别人的帖子没有示范价值。导入你自己的库后这里会有内容。
+export const collects = [];
+
+export const collectContent = [];

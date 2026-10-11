@@ -2,7 +2,7 @@
 import {asset} from '../config';
 
 export const T = {
-  kinds: {core: '#ecd9a6', folder: '#d9b6c1', post: '#c0b8ef', note: '#a9dccb', idea: '#e8c48c', draft: '#a9d3e4', concept: '#e4e6e8', tag: '#98a6a1', ghost: '#70746f'},
+  kinds: {core: '#ecd9a6', folder: '#d9b6c1', post: '#c0b8ef', collect: '#e3b3c4', note: '#a9dccb', idea: '#e8c48c', draft: '#a9d3e4', concept: '#e4e6e8', tag: '#98a6a1', ghost: '#70746f'},
   // 模块（水母）的 color/filter/flip 已移入 graph.js 的 MODULES —— 那里是模块的唯一数据源，
   // 新增一个模块只需改那一处。这里只保留与模块无关的调色板。
   // 笔记类型标签配色：与上方 kinds 同一套调色板，按「权威 → 个人 → 清单」冷暖递进。

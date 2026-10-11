@@ -114,8 +114,12 @@ function analyze(graph, node) {
       bars: [...C].sort((a, b) => a.deg - b.deg).map(c => ({v: c.deg, on: c.id === node.id, label: c.short}))};
   };
 
-  if (node.kind === 'post') {
-    const P = C.filter(n => n.kind === 'post').sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  if (node.kind === 'post' || node.kind === 'collect') {
+    // 作品与收藏结构相同，共用这套分析；只有文案与跳转目标不同。
+    const isCollect = node.kind === 'collect';
+    // 排名在「同类内容」里比：作品跟作品比，收藏跟收藏比。
+    // 写死 kind === 'post' 会让收藏页永远显示「第 0/0 名」。
+    const P = C.filter(n => n.kind === node.kind).sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const p = node.post, rate = x => x.post.views ? x.post.saves / x.post.views * 100 : null;
     const r = rate(node), others = P.filter(x => x !== node).map(rate).filter(x => x != null);
     const avg = others.reduce((s, x) => s + x, 0) / (others.length || 1);
@@ -128,10 +132,10 @@ function analyze(graph, node) {
       .filter(d => p.metrics?.[d.key] != null)
       .map(d => [d.zh, d.en, fmt(p.metrics[d.key]) + (d.unit || '')]);
     return {
-      badge: ['已发布', 'Published'], badgeType: p.type || null,
+      badge: isCollect ? ['已收藏', 'Collected'] : ['已发布', 'Published'], badgeType: p.type || null,
       platformMetrics: pm.length ? pm : null, platformLabel: p.platform || '',
-      status: `首发 First published ${p.date} · ${node.tags.length} 个话题 topics`,
-      action: ['查看作品', 'Open in Works', {type: 'page', page: 'library', id: p.id}],
+      status: `${isCollect ? '他人发布' : '首发'} ${isCollect ? 'Published by the author' : 'First published'} ${p.date} · ${node.tags.length} 个话题 topics`,
+      action: [isCollect ? '查看收藏' : '查看作品', isCollect ? 'Open in Collects' : 'Open in Works', {type: 'page', page: isCollect ? 'collects' : 'library', id: p.id}],
       metric: {label: '收藏率', en: 'Save rate', value: r, level: r >= 6 ? ['高', 'High', 'high'] : r >= 3 ? ['中', 'Moderate', 'mid'] : ['低', 'Low', 'low'],
         delta: `${r - avg >= 0 ? '+' : ''}${(r - avg).toFixed(1)}%`, deltaEn: 'vs. other works', bars: P.map(x => ({v: rate(x), on: x === node, label: x.short}))},
       tiles: [['eye', p.views, '观看', 'Views'], ['save', p.saves, '收藏', 'Saves'], ['user', p.follows ?? '—', '涨粉', 'Follows'], ['link', d.both, '双向共振', 'Mutual']],

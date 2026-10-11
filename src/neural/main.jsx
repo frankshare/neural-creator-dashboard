@@ -1,7 +1,7 @@
 import React, {useCallback, useDeferredValue, useEffect, useMemo, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {seedIdeas, seedDrafts, snapshot, DATA_SOURCE} from '../data';
-import {posts, monthPosts} from './works';
+import {posts, monthPosts, collects} from './works';
 import {CONFIG, asset} from '../config';
 import {buildGraph, forceLayout, stats, KINDS} from './graph';
 import {Home} from './Home';
@@ -47,7 +47,7 @@ function Modal({title, en, onClose, children, wide}) {
   </div>;
 }
 
-const navs = [['home', '工作台', 'Workspace'], ['library', '作品库', 'Works'], ['drafts', '创作台', 'Drafts'], ['ideas', '选题池', 'Ideas']];
+const navs = [['home', '工作台', 'Workspace'], ['library', '作品库', 'Works'], ['collects', '收藏', 'Collects'], ['drafts', '创作台', 'Drafts'], ['ideas', '选题池', 'Ideas']];
 const initialPage = () => { const h = location.hash.slice(1); return navs.some(n => n[0] === h) ? h : 'home'; };
 
 function Snapshot({goal, onGoal, ideas, drafts, onIdea, onDraft, onLibrary}) {
@@ -87,6 +87,7 @@ function App() {
   const [active, setActive] = useState(() => drafts[0]?.id);
   const [focus, setFocus] = useState({mod: null, sel: null});
   const [libSel, setLibSel] = useState(() => posts[1]?.id ?? posts[0]?.id ?? null);
+  const [colSel, setColSel] = useState(() => collects[1]?.id ?? collects[0]?.id ?? null);
   const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null);
   const [goalInput, setGoalInput] = useState(String(goal));
@@ -126,12 +127,12 @@ function App() {
     setDrafts(rest); setActive(rest[0]?.id); setToast('草稿已删除 · Draft deleted');
   }
   const onAction = useCallback(a => {
-    if (a.type === 'page') { if (a.page === 'library') setLibSel(a.id); if (a.page === 'drafts') setActive(a.id); setPage(a.page); }
+    if (a.type === 'page') { if (a.page === 'library') setLibSel(a.id); if (a.page === 'collects') setColSel(a.id); if (a.page === 'drafts') setActive(a.id); setPage(a.page); }
     if (a.type === 'read') setModal({read: graph.index.get(a.id)});
     if (a.type === 'editIdea') editIdea(a.idea);
     if (a.type === 'ideaToDraft') toDraft(a.idea);
   }, [graph, drafts, ideas]); // eslint-disable-line react-hooks/exhaustive-deps
-  const openInGraph = id => { const n = graph.index.get(id); const mod = {post: 'works', note: 'methods', idea: 'ideas', draft: 'drafts', concept: 'concepts'}[n?.kind]; if (mod) { setFocus({mod, sel: id}); setPage('home'); } };
+  const openInGraph = id => { const n = graph.index.get(id); const mod = {post: 'works', collect: 'collects', note: 'methods', idea: 'ideas', draft: 'drafts', concept: 'concepts'}[n?.kind]; if (mod) { setFocus({mod, sel: id}); setPage('home'); } };
   const s = stats(graph);
 
   return <div className={`neural page-${page}`}>
@@ -153,6 +154,7 @@ function App() {
         <Snapshot goal={goal} onGoal={() => { setGoalInput(String(goal)); setModal('goal'); }} ideas={ideas} drafts={drafts} onIdea={editIdea} onDraft={id => { setActive(id); setPage('drafts'); }} onLibrary={id => { if (typeof id === 'string') setLibSel(id); setPage('library'); }}/>
       </>}
       {page === 'library' && <Library graph={graph} selected={libSel} setSelected={setLibSel} onGo={openInGraph} onAction={onAction}/>}
+    {page === 'collects' && <Library graph={graph} selected={colSel} setSelected={setColSel} onGo={openInGraph} onAction={onAction} mode="collects"/>}
       {page === 'drafts' && <Drafts graph={graph} drafts={drafts} setDrafts={setDrafts} active={active} setActive={setActive} onNew={() => newDraft()} onDelete={deleteDraft} onGo={openInGraph}/>}
       {page === 'ideas' && <Ideas graph={graph} ideas={ideas} onEdit={editIdea} onGraph={openInGraph} onNew={() => editIdea({id: Math.max(0, ...ideas.map(i => i.id)) + 1, title: '', platform: '小红书', priority: '中', status: '待写', note: ''})}/>}
     </main>

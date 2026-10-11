@@ -24,14 +24,17 @@ export function moduleItems(graph, modId) {
 
 function moduleSummary(graph, m) {
   const items = moduleItems(graph, m.id);
+  // 每个模块的「一句话摘要」。这是按模块定制的展示逻辑，无法从 MODULES 推导，
+  // 所以新增模块时**必须在这里补一条** —— 漏了会退化成「内容条数」而不是崩掉首页。
   const sub = {
-    works: () => [fmt(items.reduce((s, n) => s + n.post.views, 0)), '观看', 'views'],
+    works: () => [fmt(items.reduce((s, n) => s + (n.post?.views || 0), 0)), '观看', 'views'],
+    collects: () => [fmt(items.reduce((s, n) => s + (n.post?.views || 0), 0)), '观看', 'views'],
     concepts: () => [fmt(items.reduce((s, n) => s + n.in, 0)), '提及', 'mentions'],
     methods: () => [graph.links.filter(l => l.kind === 'wiki').length, '双链', 'wikilinks'],
     ideas: () => [items.filter(n => n.idea.status !== '已转草稿').length, '待写', 'to write'],
     drafts: () => [fmt(items.reduce((s, n) => s + (n.body || '').length, 0)), '字', 'chars']
-  }[m.id]();
-  return {count: items.length, sub};
+  }[m.id];
+  return {count: items.length, sub: sub ? sub() : [fmt(items.length), '条内容', 'items']};
 }
 
 function itemMeta(n) {
@@ -464,7 +467,7 @@ export function Home({graph, layout, focus, setFocus, onAction, onAbout, reduced
 
     {stage === 'hub' && <div className="legend glass" aria-label="图例">
       <h3>图例 <em>Legend</em></h3>
-      {['post', 'note', 'idea', 'draft', 'concept', 'tag', 'ghost'].map(k => <div key={k}><i style={{'--kc': KINDS[k].color}} className={k === 'ghost' ? 'ghost' : ''}/>{KINDS[k].label} <em>{KINDS[k].en}</em><b>{graph.nodes.filter(n => n.kind === k).length}</b></div>)}
+      {['post', 'collect', 'note', 'idea', 'draft', 'concept', 'tag', 'ghost'].map(k => <div key={k}><i style={{'--kc': KINDS[k].color}} className={k === 'ghost' ? 'ghost' : ''}/>{KINDS[k].label} <em>{KINDS[k].en}</em><b>{graph.nodes.filter(n => n.kind === k).length}</b></div>)}
       <div className="legend-lines"><span><i className="ln mutual"/>双向 <em>Mutual</em></span><span><i className="ln one"/>单向 <em>One-way</em></span></div>
     </div>}
     {stage === 'hub' && <Dock graph={graph} onGo={go}/>}

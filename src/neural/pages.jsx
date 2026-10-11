@@ -3,7 +3,7 @@ import {KINDS, CONTENT, MODULES, neighbors, latent, LINK_EN} from './graph';
 import {Icon} from './icons';
 import {Analysis, Count} from './Analysis';
 import {snapshot} from '../data';
-import {posts} from './works';
+import {posts, collects} from './works';
 import {T} from './theme';
 
 const fmt = v => v == null ? '—' : Number(v).toLocaleString('zh-CN');
@@ -16,33 +16,42 @@ export function PageHead({zh, en, sub, subEn, children}) {
 }
 
 // —— 作品库 Works ——
-export function Library({graph, selected, setSelected, onGo, onAction}) {
+export function Library({graph, selected, setSelected, onGo, onAction, mode = 'works'}) {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('date');
+  // 同一个组件渲染两个页面：作品库（你自己发布的）与收藏（收藏的他人内容）。
+  // 两者数据结构完全相同 —— 只有数据源、节点前缀和文案不同。
+  const isCollects = mode === 'collects';
+  const items = isCollects ? collects : posts;
+  const np = isCollects ? 'collect:' : 'post:';
   const rate = p => p.views ? p.saves / p.views : -1;
-  const rows = posts.filter(p => p.title.toLowerCase().includes(q.toLowerCase())).sort((a, b) =>
+  const rows = items.filter(p => p.title.toLowerCase().includes(q.toLowerCase())).sort((a, b) =>
     sort === 'date' ? b.date.localeCompare(a.date) : sort === 'rate' ? rate(b) - rate(a) : (b[sort] ?? -1) - (a[sort] ?? -1));
-  const order = [...posts].sort((a, b) => a.date.localeCompare(b.date));
-  const node = graph.index.get('post:' + selected) || graph.index.get('post:' + rows[0]?.id);
-  const total = posts.reduce((s, p) => s + p.views, 0);
-  const max = Math.max(...posts.map(p => p.views));
-  const kpis = [['已发布', 'Published', posts.length], ['账号粉丝', 'Followers', snapshot.followers], ['累计观看', 'Total views', total], ['已知涨粉', 'Known follows', posts.reduce((s, p) => s + (p.follows ?? 0), 0)]];
+  const order = [...items].sort((a, b) => a.date.localeCompare(b.date));
+  const node = graph.index.get(np + selected) || graph.index.get(np + rows[0]?.id);
+  const total = items.reduce((s, p) => s + p.views, 0);
+  const max = Math.max(1, ...items.map(p => p.views));
   // 平台分组：只有一个平台时不分组（多一层标题没意义），出现第二个平台才自动分组。
   const platOf = p => p.platform || '未标注';
-  const platList = [...new Set(posts.map(platOf))].sort((a, b) =>
-    posts.filter(p => platOf(p) === b).length - posts.filter(p => platOf(p) === a).length);
+  const platList = [...new Set(items.map(platOf))].sort((a, b) =>
+    items.filter(p => platOf(p) === b).length - items.filter(p => platOf(p) === a).length);
+  const kpis = isCollects
+    ? [['已收藏', 'Collected', items.length], ['来源平台', 'Platforms', platList.length], ['累计观看', 'Total views', total], ['累计书签', 'Total saves', items.reduce((s, p) => s + (p.saves ?? 0), 0)]]
+    : [['已发布', 'Published', items.length], ['账号粉丝', 'Followers', snapshot.followers], ['累计观看', 'Total views', total], ['已知涨粉', 'Known follows', items.reduce((s, p) => s + (p.follows ?? 0), 0)]];
   return <div className="page page-library">
-    <PageHead zh="作品库" en="Works" sub="每一篇，都留下回响。" subEn="Every piece leaves an echo — metrics and links side by side."/>
+    <PageHead zh={isCollects ? '收藏' : '作品库'} en={isCollects ? 'Collects' : 'Works'}
+      sub={isCollects ? '别人的好东西，收进来慢慢看。' : '每一篇，都留下回响。'}
+      subEn={isCollects ? 'Saved from others — reference material, with their own metrics.' : 'Every piece leaves an echo — metrics and links side by side.'}/>
     <section className="kpi-band glass">{kpis.map(([zh, en, v]) => <div key={zh}><span>{zh} <em>{en}</em></span><strong><Count value={v}/></strong></div>)}</section>
     <div className="library-layout">
       <section className="works-col">
         <div className="toolbar-row">
-          <label className="search"><Icon name="search" size={15}/><input value={q} onChange={e => setQ(e.target.value)} placeholder="搜索作品… Search works" aria-label="搜索作品"/></label>
+          <label className="search"><Icon name="search" size={15}/><input value={q} onChange={e => setQ(e.target.value)} placeholder={isCollects ? '搜索收藏… Search collects' : '搜索作品… Search works'} aria-label={isCollects ? '搜索收藏' : '搜索作品'}/></label>
           <div className="seg" role="group" aria-label="排序">{[['date', '最新', 'Latest'], ['views', '观看', 'Views'], ['rate', '收藏率', 'Save rate'], ['follows', '涨粉', 'Follows']].map(([k, zh, en]) => <button key={k} className={sort === k ? 'active' : ''} onClick={() => setSort(k)}>{zh}<em>{en}</em></button>)}</div>
         </div>
         {(() => {
           const card = (p, i) => {
-            const n = graph.index.get('post:' + p.id);
+            const n = graph.index.get(np + p.id);
             const on = node?.id === n.id;
             return <button key={p.id} className={`work-card ${on ? 'active' : ''}`} onClick={() => setSelected(p.id)} style={{animationDelay: i * 60 + 'ms'}}>
               <span className="wc-cover">{n.cover ? <img src={n.cover} alt="" loading="lazy"/> : <span className="wc-fallback" style={{'--h': (order.indexOf(p) * 47) % 360}}><b>{p.title}</b><small>{n.media === 'video' ? '视频 · Video' : '图文 · Post'}</small></span>}<span className="wc-index">#{String(order.indexOf(p) + 1).padStart(2, '0')}</span></span>
@@ -64,10 +73,10 @@ export function Library({graph, selected, setSelected, onGo, onAction}) {
             </section>;
           });
         })()}
-        {!rows.length && <div className="empty"><Icon name="search" size={30}/><p>没有找到这篇作品 <em>No match</em></p><button className="pill" onClick={() => setQ('')}>清空搜索 <em>Clear</em></button></div>}
-        <p className="source-line"><Icon name="info" size={13}/>{posts.length} 篇作品均为{snapshot.source}；「—」表示未提供 <em>Not provided</em>。</p>
+        {!rows.length && <div className="empty"><Icon name="search" size={30}/><p>没有找到{isCollects ? '这条收藏' : '这篇作品'} <em>No match</em></p><button className="pill" onClick={() => setQ('')}>清空搜索 <em>Clear</em></button></div>}
+        <p className="source-line"><Icon name="info" size={13}/>{items.length} {isCollects ? '条收藏来自他人发布' : '篇作品均为'}{snapshot.source}；{isCollects ? '指标是该帖在原平台的表现，不是本账号数据' : ''}「—」表示未提供 <em>Not provided</em>。</p>
       </section>
-      {node && <aside className="library-analysis" key={node.id}><Analysis graph={graph} node={node} module={MODULES[0]} onGo={onGo} onAction={onAction} onClose={() => setSelected(null)}/></aside>}
+      {node && <aside className="library-analysis" key={node.id}><Analysis graph={graph} node={node} module={MODULES.find(m => m.id === (isCollects ? 'collects' : 'works'))} onGo={onGo} onAction={onAction} onClose={() => setSelected(null)}/></aside>}
     </div>
   </div>;
 }
