@@ -127,6 +127,39 @@ function classify(rel) {
   return opt.allAsNotes ? {kind: 'methods', root: 0} : null;
 }
 
+// —— 平台推断 ——
+// 策略：目录名推断为主，frontmatter 可覆盖。
+//   · 作品（works）天然绑定平台，所以从分类根目录名推断：
+//       「X书签归档」→ 去掉后缀「归档」→「X书签」→ 别名归一 →「X」
+//       「抖音归档」→「抖音」
+//   · 方法/选题/草稿是跨平台的功能概念（一篇方法笔记跟它在哪个平台收藏的无关），
+//     所以这些桶**不从目录推断**，只有 frontmatter 显式写了才算。
+// frontmatter 里 platform / 平台 一律优先，且支持多值（YAML 数组）。
+const PLATFORM_ALIAS = [
+  [/^(x|twitter|推特|x书签|twitter书签)$/i, 'X'],
+  [/(抖音|douyin|tiktok)/i, '抖音'],
+  [/(小红书|xiaohongshu|rednote|redbook)/i, '小红书'],
+  [/(微信|wechat|公众号|视频号)/i, '微信'],
+  [/(b站|bilibili|哔哩)/i, 'B站'],
+  [/(youtube|油管)/i, 'YouTube'],
+  [/(知乎|zhihu)/i, '知乎'],
+  [/(微博|weibo)/i, '微博'],
+  [/(即刻|jike)/i, '即刻']
+];
+function platformFromDir(dir) {
+  const base = String(dir).replace(/[\s_-]*(归档|书签|收藏|笔记|合集|notes?|collection|archive)$/i, '').trim() || String(dir);
+  for (const [re, name] of PLATFORM_ALIAS) if (re.test(base)) return name;
+  return base;
+}
+function platformFor(kind, rel, fm, root) {
+  const explicit = pick(fm, ['platform', '平台', '来源平台']);
+  if (explicit) return Array.isArray(explicit) ? explicit.join(', ') : String(explicit).trim();
+  if (kind !== 'works') return '';
+  const parts = rel.split(sep).filter(Boolean);
+  const dir = root > 0 ? parts[root - 1] : parts[0];
+  return dir ? platformFromDir(dir) : '';
+}
+
 const files = walk(VAULT);
 const bucket = {works: [], methods: [], ideas: [], drafts: []};
 for (const file of files) {
@@ -134,7 +167,7 @@ for (const file of files) {
   if (!c) continue;
   const {fm, body} = parse(readFileSync(file, 'utf8'));
   const title = String(pick(fm, ['title', '标题', 'name']) || basename(file).replace(/\.md$/i, '')).trim();
-  bucket[c.kind].push({file, rel, root: c.root, fm, body, title});
+  bucket[c.kind].push({file, rel, root: c.root, fm, body, title, platform: platformFor(c.kind, rel, fm, c.root)});
 }
 
 // —— 生成数据 ——
@@ -162,8 +195,10 @@ const works = workItems.map(({primary: x, body, tags}) => {
   const media = /视频|video/i.test(String(pick(x.fm, ['media', '类型', 'type', '形式']) || '')) ? 'video' : 'images';
   // 笔记类型（文档 / 研究 / 合集 / Skill合集 / 工具合集 …），用于看板上的彩色分类标签。
   const noteType = String(pick(x.fm, ['type', '分类', 'category']) || '').trim();
+  // 来源平台（X / 抖音 / 小红书 …）：作品库按平台分组、分析栏按平台渲染指标都靠它。
+  const platform = x.platform || '';
   const p = {
-    title: x.title, type: noteType, date: dateOf(pick(x.fm, ['date', '发布时间', '发布日期', 'published', 'publishedAt', 'created', '创建时间']), x.file),
+    title: x.title, type: noteType, platform, date: dateOf(pick(x.fm, ['date', '发布时间', '发布日期', 'published', 'publishedAt', 'created', '创建时间']), x.file),
     views: num(pick(x.fm, ['views', '观看', '浏览', '阅读', '播放'])) ?? 0,
     likes: num(pick(x.fm, ['likes', '点赞'])) ?? 0,
     comments: num(pick(x.fm, ['comments', '评论'])) ?? 0,
@@ -174,7 +209,7 @@ const works = workItems.map(({primary: x, body, tags}) => {
     ctr: num(pick(x.fm, ['ctr', '点击率', '封面点击率'])),
     duration: num(pick(x.fm, ['duration', '平均观看', '平均观看时长', '时长']))
   };
-  return {post: p, content: {title: x.title, type: noteType, body, tags, media}};
+  return {post: p, content: {title: x.title, type: noteType, platform, body, tags, media}};
 }).sort((a, b) => b.post.date.localeCompare(a.post.date)).slice(0, maxWorks)
   .map((w, i) => ({...w, post: {id: 'w' + (i + 1), ...w.post}}));
 
