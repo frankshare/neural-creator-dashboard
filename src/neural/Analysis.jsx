@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {KINDS, CONTENT, MODULES, neighbors, latent, askGraph, LINK_KINDS, LINK_EN} from './graph';
 import {Icon} from './icons';
 import {T} from './theme';
+import {metricsFor} from '../platform-metrics';
 
 const fmt = (v, d = 0) => v == null || Number.isNaN(v) ? '—' : Number(v).toLocaleString('zh-CN', {minimumFractionDigits: d, maximumFractionDigits: d});
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -121,8 +122,15 @@ function analyze(graph, node) {
     const rank = [...P].sort((a, b) => b.post.views - a.post.views).indexOf(node) + 1;
     const engage = p.views ? (p.likes + p.comments + p.saves + p.shares) / p.views * 100 : null;
     const ideas = latent(graph, node.id).filter(x => graph.index.get(x.id).kind === 'idea');
+    // 平台专属指标：按 src/platform-metrics.js 的定义取，只列真正有值的项。
+    // 有平台指标时就不再显示下面那套通用「全部指标」，避免同一项（如点赞）出现两次。
+    const pm = metricsFor(p.platform)
+      .filter(d => p.metrics?.[d.key] != null)
+      .map(d => [d.zh, d.en, fmt(p.metrics[d.key]) + (d.unit || '')]);
     return {
-      badge: ['已发布', 'Published'], badgeType: p.type || null, status: `首发 First published ${p.date} · ${node.tags.length} 个话题 topics`,
+      badge: ['已发布', 'Published'], badgeType: p.type || null,
+      platformMetrics: pm.length ? pm : null, platformLabel: p.platform || '',
+      status: `首发 First published ${p.date} · ${node.tags.length} 个话题 topics`,
       action: ['查看作品', 'Open in Works', {type: 'page', page: 'library', id: p.id}],
       metric: {label: '收藏率', en: 'Save rate', value: r, level: r >= 6 ? ['高', 'High', 'high'] : r >= 3 ? ['中', 'Moderate', 'mid'] : ['低', 'Low', 'low'],
         delta: `${r - avg >= 0 ? '+' : ''}${(r - avg).toFixed(1)}%`, deltaEn: 'vs. other works', bars: P.map(x => ({v: rate(x), on: x === node, label: x.short}))},
@@ -226,7 +234,8 @@ export function Analysis({graph, node, module, onGo, onAction, onClose}) {
       </div>
       <Metric {...a.metric}/>
       <Tiles tiles={a.tiles}/>
-      {a.all && <section className="an-section"><h3>全部指标 <em>All metrics</em></h3><div className="an-all">{a.all.map(([zh, en, v]) => <div key={zh}><span>{zh}<em>{en}</em></span><b>{v}</b></div>)}</div></section>}
+      {a.platformMetrics && <section className="an-section"><h3>{a.platformLabel} 专属指标 <em>Platform metrics</em></h3><div className="an-all">{a.platformMetrics.map(([zh, en, v]) => <div key={zh}><span>{zh}<em>{en}</em></span><b>{v}</b></div>)}</div></section>}
+      {a.all && !a.platformMetrics && <section className="an-section"><h3>全部指标 <em>All metrics</em></h3><div className="an-all">{a.all.map(([zh, en, v]) => <div key={zh}><span>{zh}<em>{en}</em></span><b>{v}</b></div>)}</div></section>}
       <Insights items={a.insights}/>
       {node.tags?.length > 0 && <section className="an-section"><h3>话题标签 <em>Topics</em></h3><div className="chip-row">{node.tags.map(t => <span key={t} className="chip static" style={{'--kc': KINDS.tag.color}}>#{t}</span>)}</div></section>}
       <Links graph={graph} node={node} onGo={onGo}/>

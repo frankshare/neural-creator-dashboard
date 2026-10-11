@@ -20,6 +20,8 @@
 import {readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSync} from 'node:fs';
 import {join, relative, resolve, dirname, basename, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
+// 平台专属指标的定义在 src/platform-metrics.js —— 改指标只改那一个文件。
+import {metricsFor} from '../src/platform-metrics.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DATA = join(ROOT, 'src/data');
@@ -197,8 +199,15 @@ const works = workItems.map(({primary: x, body, tags}) => {
   const noteType = String(pick(x.fm, ['type', '分类', 'category']) || '').trim();
   // 来源平台（X / 抖音 / 小红书 …）：作品库按平台分组、分析栏按平台渲染指标都靠它。
   const platform = x.platform || '';
+  // 平台专属指标：按 src/platform-metrics.js 的定义从 frontmatter 读，键名认中英别名。
+  // 只保留真正读到值的项 —— UI 据此判断「这个指标有没有数据」，而不是拿 0 冒充。
+  const metrics = {};
+  for (const d of metricsFor(platform)) {
+    const v = num(pick(x.fm, d.aliases));
+    if (v != null) metrics[d.key] = v;
+  }
   const p = {
-    title: x.title, type: noteType, platform, date: dateOf(pick(x.fm, ['date', '发布时间', '发布日期', 'published', 'publishedAt', 'created', '创建时间']), x.file),
+    title: x.title, type: noteType, platform, metrics, date: dateOf(pick(x.fm, ['date', '发布时间', '发布日期', 'published', 'publishedAt', 'created', '创建时间']), x.file),
     views: num(pick(x.fm, ['views', '观看', '浏览', '阅读', '播放'])) ?? 0,
     likes: num(pick(x.fm, ['likes', '点赞'])) ?? 0,
     comments: num(pick(x.fm, ['comments', '评论'])) ?? 0,
