@@ -187,7 +187,9 @@ function App() {
           <li><b>双向共振 Resonance</b>：两条内容共同提及 ≥2 个概念，或选题与草稿互相记录。</li>
           <li><b>选题来源 Source</b>：草稿记录来源选题；选题状态为「已转草稿」时反向成立。</li>
         </ul>
-        <p>作品库：{posts.length} 篇<b>示例作品</b>，账号、标题、日期与指标均为虚构，仅用于展示效果。</p>
+        {isSample
+          ? <p>作品库：{posts.length} 篇<b>示例作品</b>，账号、标题、日期与指标均为虚构，仅用于展示效果。</p>
+          : <p>作品库：{posts.length} 篇<b>你自己的作品</b>，收藏：{collects.length} 条<b>他人内容</b>（指标是原作者的公开数据，不是你的成绩）。数据由 <code>scripts/import-notes.mjs</code> 从你的本地笔记生成，只存在这台机器上。</p>}
         <p>当前：{s.content} 条内容 · {s.links} 条连接 · {s.mutual} 组双向 · {s.ghosts} 个未创建双链。</p>
         <p className="quiet">图谱分析是本地规则检索，未调用 AI。选题、草稿与目标保存在当前浏览器，不写入 Obsidian、不发布到平台。<em>Local rules only · no AI · nothing is published.</em></p>
         <hr/>
