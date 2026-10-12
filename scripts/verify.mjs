@@ -48,14 +48,19 @@ function check(m, label) {
   const errs = [];
   for (const k of ['snapshot', 'posts', 'postContent', 'notes', 'seedIdeas', 'seedDrafts', 'concepts']) if (!(k in m)) errs.push(`缺少导出 ${k}`);
   if (errs.length) return errs;
-  if (!m.posts.length) errs.push('posts 为空');
-  for (const p of m.posts) {
-    if (typeof p.id !== 'string' || !p.id) errs.push(`作品缺少 id：${p.title}`);
-    if (!/^\d{4}-\d{2}-\d{2}/.test(p.date || '')) errs.push(`作品日期格式不对：${p.title}`);
-    if (typeof p.views !== 'number') errs.push(`作品 views 必须是数字：${p.title}`);
-    if (!m.postContent.some(c => c.title === p.title)) errs.push(`postContent 里找不到作品：${p.title}`);
+  // 「作品」允许为空 —— 只收藏、自己还没发布过内容是完全正常的配置，
+  // 所以这里只要求「作品 + 收藏」至少有一边有内容。两者结构相同，用同一个校验。
+  if (!m.posts.length && !(m.collects || []).length) errs.push('作品和收藏同时为空');
+  const collectContent = m.collectContent || [];
+  for (const [list, content, what] of [[m.posts, m.postContent, '作品'], [m.collects || [], collectContent, '收藏']]) {
+    for (const p of list) {
+      if (typeof p.id !== 'string' || !p.id) errs.push(`${what}缺少 id：${p.title}`);
+      if (!/^\d{4}-\d{2}-\d{2}/.test(p.date || '')) errs.push(`${what}日期格式不对：${p.title}`);
+      if (typeof p.views !== 'number') errs.push(`${what} views 必须是数字：${p.title}`);
+      if (!content.some(c => c.title === p.title)) errs.push(`${what}在对应内容数组里找不到：${p.title}`);
+    }
+    if (new Set(list.map(p => p.id)).size !== list.length) errs.push(`${what} id 有重复`);
   }
-  if (new Set(m.posts.map(p => p.id)).size !== m.posts.length) errs.push('作品 id 有重复');
   for (const n of m.notes) if (!/^05-方法库 methods\/[^/]+\/.+/.test(n.path || '')) errs.push(`笔记 path 格式不对：${n.title}`);
   for (const i of m.seedIdeas) if (typeof i.id !== 'number' || !['待写', '待扩展', '已转草稿'].includes(i.status)) errs.push(`选题 id 须为数字、status 须为 待写/待扩展/已转草稿：${i.title}`);
   for (const d of m.seedDrafts) if (d.source != null && !m.seedIdeas.some(i => i.id === d.source)) errs.push(`草稿的来源选题不存在：${d.title}`);
@@ -88,7 +93,7 @@ else {
   else ok(`src/data/${source} 结构正确`);
 }
 
-// 3. 核心动效：发光的光球与五只水母是这个看板的核心，不能被删掉或改成静态
+// 3. 核心动效：发光的光球与每模块一只水母是这个看板的核心，不能被删掉或改成静态
 console.log('核心动效（光球与水母）');
 const home = readFileSync(join(ROOT, 'src/neural/Home.jsx'), 'utf8');
 const graphSrc = readFileSync(join(ROOT, 'src/neural/graph.js'), 'utf8');
@@ -103,8 +108,14 @@ const core = [
 ];
 for (const [label, re] of core) if (!re.test(home)) fail(`Home.jsx 缺少核心动效：${label}`); else ok(label);
 const modules = (graphSrc.match(/export const MODULES = \[([\s\S]*?)\n\];/) || [])[1] || '';
-if ((modules.match(/\{id: '/g) || []).length !== 5) fail('graph.js 的 MODULES 应为 5 个模块（5 只水母）');
-else ok('5 个模块 → 5 只水母');
+// 模块数不是固定的：收藏模块是后加的。这里只要求「每个模块一只水母」这一结构成立
+// （上面 core 里的 MODULES.map + jelly 视频那条已经验证了），并保证模块数不低于原型。
+const moduleCount = (modules.match(/\{id: '/g) || []).length;
+if (moduleCount < 5) fail(`graph.js 的 MODULES 至少要有 5 个模块，当前 ${moduleCount} 个`);
+else ok(`${moduleCount} 个模块 → ${moduleCount} 只水母`);
+if (!/kind: 'collect'/.test(modules)) fail('graph.js 的 MODULES 缺少「收藏」（kind: collect）');
+else ok('MODULES 含「收藏」模块');
+if (!/kind: 'post'/.test(modules)) fail('graph.js 的 MODULES 缺少「作品库」（kind: post）');
 for (const f of ['media/orb.mp4', 'media/jellyfish.mp4']) if (!existsSync(join(ROOT, 'public', f))) fail(`缺少核心素材 public/${f}`);
 
 // 4. 页面与素材

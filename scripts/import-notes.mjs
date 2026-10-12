@@ -16,6 +16,7 @@
 //   --followers <数字>   粉丝数
 //   --max-works <数字>   最多导入多少篇作品（默认 30，按日期取最新）
 //   --max-notes <数字>   最多导入多少篇方法笔记（默认 40）
+//   --exclude <子串>     跳过路径含该子串的笔记（可多次传；用于索引、进度这类项目元数据文件）
 //   --out <文件>         输出到指定文件，且不切换看板数据（用于测试）
 import {readFileSync, writeFileSync, readdirSync, statSync, existsSync, mkdirSync} from 'node:fs';
 import {join, relative, resolve, dirname, basename, sep} from 'node:path';
@@ -30,7 +31,7 @@ const indexFor = file => `// 看板读取的数据入口。默认使用虚构示
 
 // —— 参数 ——
 const args = process.argv.slice(2);
-const opt = {works: [], collects: [], methods: [], ideas: [], drafts: []};
+const opt = {works: [], collects: [], methods: [], ideas: [], drafts: [], exclude: []};
 for (let i = 0; i < args.length; i++) {
   const a = args[i], next = () => args[++i];
   if (a === '--vault') opt.vault = next();
@@ -41,6 +42,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--followers') opt.followers = Number(next());
   else if (a === '--max-works') opt.maxWorks = Number(next());
   else if (a === '--max-notes') opt.maxNotes = Number(next());
+  else if (a === '--exclude') opt.exclude.push(next());
   else if (a === '--out') opt.out = next();
   else if (a === '--reset') opt.reset = true;
   else if (a === '-h' || a === '--help') opt.help = true;
@@ -57,6 +59,9 @@ const SKIP = new Set(['.obsidian', '.trash', '.git', 'node_modules', '.DS_Store'
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     if (SKIP.has(name) || name.startsWith('.')) continue;
+    // 排除项目自身的元数据文件（索引、进度表）：它们是给维护用的，不是内容。
+    // 归档进度表还记录了被跳过的条目标题，绝不该进看板。
+    if (opt.exclude.some(x => x && name.includes(x))) continue;
     const p = join(dir, name), st = statSync(p);
     if (st.isDirectory()) walk(p, out);
     else if (name.toLowerCase().endsWith('.md')) out.push(p);
@@ -316,5 +321,9 @@ if (!opt.out) writeFileSync(INDEX, indexFor('my-data.js'));
 console.log(`导入完成：作品 ${works.length}、收藏 ${collects.length}、方法笔记 ${notes.length}、选题 ${ideas.length}、草稿 ${drafts.length}、概念词 ${concepts.length}`);
 console.log(`输出：${relative(process.cwd(), target) || target}${opt.out ? '' : '（看板已切换到这份数据）'}`);
 if (!concepts.length) console.log('提示：没有生成概念词（需要同一个话题标签出现在至少两条笔记里），可以手动编辑输出文件末尾的 concepts。');
-if (bucket.works.length > maxWorks) console.log(`提示：作品共 ${bucket.works.length} 篇，只取了最新的 ${maxWorks} 篇（--max-works 可调整）。`);
-if (bucket.collects.length > maxWorks) console.log(`提示：收藏共 ${bucket.collects.length} 篇，只取了最新的 ${maxWorks} 篇（--max-works 可调整）。`);
+// 用「导入后的条数」和「上限」比，而不是用原始笔记数 —— 归档目录里一篇帖子有
+// 导读/帖子/链接内容三份笔记，而 --group-works 会把它们聚成一条收藏。
+const rawMap = {作品: [works.length, bucket.works.length], 收藏: [collects.length, bucket.collects.length]};
+for (const [what, [kept, raw]] of Object.entries(rawMap)) {
+  if (kept >= maxWorks && raw > kept) console.log(`提示：${what}共 ${raw} 篇笔记，聚合后 ${kept} 条已达上限 ${maxWorks}，可能有内容被截断（--max-works 可调整）。`);
+}
