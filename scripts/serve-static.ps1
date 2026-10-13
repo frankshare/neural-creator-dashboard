@@ -1,10 +1,11 @@
 ﻿# 个人工作台面板 —— 本地常驻静态服务器
-# 只服务 dist-local/（真实数据），绑定本机回环地址，不对外网开放。
-# 由 scripts\launch-dashboard.vbs 以隐藏窗口方式调用。
+# 只服务 dist-local/（真实数据），绑定回环地址，不对外网开放。
+# 可被启动文件夹的 VBS 调用，也可被「开机自启」的计划任务以 SYSTEM 调用。
 
 param(
     [int]$Port = 5180,
-    [string]$Root = ""
+    [string]$Root = "",
+    [string]$LogFile = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,8 +15,19 @@ if ([string]::IsNullOrWhiteSpace($Root)) {
 }
 $Root = [IO.Path]::GetFullPath($Root)
 
+if ([string]::IsNullOrWhiteSpace($LogFile)) {
+    $LogFile = Join-Path (Split-Path -Parent $PSScriptRoot) "serve-static.log"
+}
+
+function Write-Log([string]$msg) {
+    try {
+        $line = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss") + "  " + $msg
+        Add-Content -Path $LogFile -Value $line -Encoding UTF8
+    } catch { }
+}
+
 if (-not (Test-Path $Root -PathType Container)) {
-    Write-Host "找不到站点目录：$Root"
+    Write-Log "启动失败：找不到站点目录 $Root"
     exit 1
 }
 
@@ -41,7 +53,6 @@ $mime = @{
 }
 
 $listener = New-Object System.Net.HttpListener
-# localhost 前缀不需要管理员注册；127.0.0.1 通常也可以，失败就跳过。
 foreach ($p in @("http://localhost:$Port/", "http://127.0.0.1:$Port/")) {
     try { $listener.Prefixes.Add($p) } catch { }
 }
@@ -49,12 +60,11 @@ foreach ($p in @("http://localhost:$Port/", "http://127.0.0.1:$Port/")) {
 try {
     $listener.Start()
 } catch {
-    Write-Host "监听失败（端口被占用或需要管理员注册 URL 前缀）：$($_.Exception.Message)"
+    Write-Log "监听失败（端口被占用或需要管理员注册 URL 前缀）：$($_.Exception.Message)"
     exit 1
 }
 
-Write-Host "serving $Root"
-Write-Host "listening $($listener.Prefixes -join ' , ')"
+Write-Log "已启动：root=$Root  port=$Port  user=$([Security.Principal.WindowsIdentity]::GetCurrent().Name)"
 
 while ($listener.IsListening) {
     $ctx = $null
@@ -70,7 +80,6 @@ while ($listener.IsListening) {
         $rel  = $path.TrimStart("/") -replace "/", [IO.Path]::DirectorySeparatorChar
         $full = [IO.Path]::GetFullPath((Join-Path $Root $rel))
 
-        # 防目录穿越
         $ok = $full.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase)
         if (-not $ok -or -not (Test-Path $full -PathType Leaf)) {
             $res.StatusCode = 404
@@ -135,8 +144,10 @@ while ($listener.IsListening) {
 
         $res.Close()
     } catch {
+        Write-Log "请求处理出错：$($_.Exception.Message)"
         try { $ctx.Response.StatusCode = 500; $ctx.Response.Close() } catch { }
     }
 }
 
+Write-Log "已停止"
 try { $listener.Stop() } catch { }
