@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# 本地常驻服务用的真实数据构建产物（含私人书签），绝不提交
+dist-local/
 .DS_Store
 *.log
 .vite/
