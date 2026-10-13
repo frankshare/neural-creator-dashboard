@@ -14,7 +14,7 @@ $port     = 5180
 $ps       = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
 
 try {
-    Write-Host "[0/4] 先停掉可能在跑的旧实例"
+    Write-Host "[0/5] 停掉可能在跑的旧实例"
     Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
         Where-Object { $_.CommandLine -like "*serve-static.ps1*" } |
         ForEach-Object {
@@ -23,22 +23,28 @@ try {
         }
     Start-Sleep -Seconds 2
 
-    Write-Host "[1/4] 移除「登录时」的启动文件夹条目"
+    Write-Host "[1/5] 移除「登录时」的启动文件夹条目"
     $legacy = Join-Path ([Environment]::GetFolderPath('Startup')) "NeuralDashboard.vbs"
-    if (Test-Path $legacy) { Remove-Item $legacy -Force; Write-Host "      已移除 $legacy" } else { Write-Host "      无需移除" }
+    if (Test-Path $legacy) { Remove-Item $legacy -Force; Write-Host "      已移除" } else { Write-Host "      无需移除" }
 
-    Write-Host "[2/4] 注册计划任务（schtasks /sc onstart /ru SYSTEM）"
+    Write-Host "[2/5] 注册任务（schtasks：系统启动时 / SYSTEM / 最高权限）"
     $tr = '"' + $ps + '" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $script + '" -Port ' + $port
-    Write-Host "      /tr = $tr"
-    $out = cmd /c ('schtasks /create /tn "' + $taskName + '" /tr "' + $tr + '" /sc onstart /ru SYSTEM /rl HIGHEST /f 2>&1')
-    $out | ForEach-Object { Write-Host ("      " + $_) }
+    cmd /c ('schtasks /create /tn "' + $taskName + '" /tr "' + $tr + '" /sc onstart /ru SYSTEM /rl HIGHEST /f 2>&1') | ForEach-Object { Write-Host ("      " + $_) }
 
-    Write-Host "[3/4] 确认任务文件落盘"
+    Write-Host "[3/5] 修正运行限制（不限时 / 电池照跑 / 失败重试）"
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
+    Set-ScheduledTask -TaskName $taskName -Settings $settings | Out-Null
+    $chk = Get-ScheduledTask -TaskName $taskName
+    Write-Host ("      ExecutionTimeLimit        = " + $chk.Settings.ExecutionTimeLimit)
+    Write-Host ("      DisallowStartIfOnBatteries = " + $chk.Settings.DisallowStartIfOnBatteries)
+    Write-Host ("      StopIfGoingOnBatteries     = " + $chk.Settings.StopIfGoingOnBatteries)
+    Write-Host ("      RestartCount               = " + $chk.Settings.RestartCount)
+
+    Write-Host "[4/5] 确认任务定义落盘"
     $tf = Join-Path $env:SystemRoot ("System32\Tasks\" + $taskName)
-    if (Test-Path $tf) { Write-Host "      OK 任务文件已生成" } else { Write-Host "      失败 任务文件没生成" }
-    cmd /c ('schtasks /query /tn "' + $taskName + '" 2>&1') | ForEach-Object { Write-Host ("      " + $_) }
+    if (Test-Path $tf) { Write-Host "      OK 已生成" } else { Write-Host "      失败 没生成" }
 
-    Write-Host "[4/4] 立刻启动验证"
+    Write-Host "[5/5] 立刻启动验证"
     cmd /c ('schtasks /run /tn "' + $taskName + '" 2>&1') | ForEach-Object { Write-Host ("      " + $_) }
     Start-Sleep -Seconds 6
     $c = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
